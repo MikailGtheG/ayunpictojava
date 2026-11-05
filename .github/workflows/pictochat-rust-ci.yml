@@ -41,4 +41,21 @@ jobs:
         run: |
           node --version
           node --check public/crypto.mjs
-          node --test tests/*.test.mjs
+          node --test tests/crypto.test.mjs tests/ui.test.mjs
+      - name: End-to-end encrypted WebSocket test
+        env:
+          PICTOCHAT_RELAY_SECRET: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+        run: |
+          set -euo pipefail
+          cargo run --quiet &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          for i in $(seq 1 60); do
+            if curl --fail --silent http://127.0.0.1:8787/ >/dev/null; then
+              node --test tests/e2e-relay.test.mjs
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Rust development relay did not start"
+          exit 1
