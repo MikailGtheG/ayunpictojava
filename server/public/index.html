@@ -116,7 +116,7 @@ function valid(data){
  if(!data||data.v!==1||typeof data.text!=="string"||data.text.length>2000||!Array.isArray(data.strokes)||data.strokes.length>1200)return false;
  let count=0;
  for(const stroke of data.strokes){
-  if(!Array.isArray(stroke)||++count>MAX_POINTS||stroke.length>MAX_POINTS)return false;
+  if(!Array.isArray(stroke)||stroke.length>MAX_POINTS)return false;
   for(const p of stroke){
    if(++count>MAX_POINTS||!Array.isArray(p)||p.length!==2||!p.every(Number.isInteger)||p[0]<0||p[0]>512||p[1]<0||p[1]>170)return false;
   }
