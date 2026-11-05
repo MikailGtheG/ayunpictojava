@@ -6,12 +6,12 @@ use axum::{
         ws::{Message, WebSocket, WebSocketUpgrade},
         Path, State,
     },
-    http::{header::ORIGIN, HeaderMap, StatusCode},
+    http::{header::{ORIGIN, SEC_WEBSOCKET_PROTOCOL}, HeaderMap, StatusCode},
     routing::get,
     Router,
 };
 use futures_util::{SinkExt, StreamExt};
-use pictochat_relay::{Rooms, MAX_FRAME_BYTES};
+use pictochat_relay::{auth::RoomAuth, Rooms, MAX_FRAME_BYTES};
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 
 const MAX_CONNECTIONS: usize = 128;
@@ -21,6 +21,7 @@ const MAX_MESSAGES_PER_SECOND: u32 = 20;
 struct AppState {
     rooms: Arc<Rooms>,
     slots: Arc<Semaphore>,
+    auth: Arc<RoomAuth>,
 }
 
 // Fixed one-second quota per session, including clients on the same room.
@@ -47,9 +48,22 @@ impl MessageQuota {
 
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
+    let secret = std::env::var("PICTOCHAT_RELAY_SECRET")
+        .map_err(|_| std::io::Error::other("set PICTOCHAT_RELAY_SECRET to 64 hex digits"))?;
+    let auth = Arc::new(RoomAuth::from_hex(&secret).map_err(std::io::Error::other)?);
+    let args: Vec<String> = std::env::args().collect();
+    if args.len() == 3 && args[1] == "invite" {
+        let token = auth.issue(&args[2]).map_err(std::io::Error::other)?;
+        println!("{token}");
+        return Ok(());
+    }
+    if args.len() != 1 {
+        return Err(std::io::Error::other("usage: cargo run -- [invite 32-hex-room-id]"));
+    }
     let state = AppState {
         rooms: Arc::new(Rooms::default()),
         slots: Arc::new(Semaphore::new(MAX_CONNECTIONS)),
+        auth,
     };
     let app = Router::new()
         .route("/ws/{room_id}", get(connect))
@@ -70,11 +84,14 @@ async fn connect(
     if !origin_is_allowed(&headers) {
         return Err(StatusCode::FORBIDDEN);
     }
+    if !room_capability_valid(&headers, &room_id, &state.auth) {
+        return Err(StatusCode::FORBIDDEN);
+    }
     let permit = state.slots.clone().try_acquire_owned()
         .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
     let room = state.rooms.join(&room_id).map_err(|_| StatusCode::BAD_REQUEST)?;
     let room_permit = room.try_enter().map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
-    Ok(ws.max_message_size(MAX_FRAME_BYTES).max_frame_size(MAX_FRAME_BYTES)
+    Ok(ws.protocols(["picto.v1"]).max_message_size(MAX_FRAME_BYTES).max_frame_size(MAX_FRAME_BYTES)
         .on_upgrade(move |socket| session(socket, room, permit, room_permit)))
 }
 
@@ -108,6 +125,30 @@ async fn session(socket: WebSocket, room: Arc<pictochat_relay::Room>, _permit: O
 }
 
 
+
+// The browser sends both subprotocol values; only the public protocol identifier
+// is echoed. The admission token is never placed in a URL or echoed to the client.
+// This is bearer-token room admission, not participant identity nor E2EE.
+fn room_capability_valid(headers: &HeaderMap, room: &str, auth: &RoomAuth) -> bool {
+    let mut saw_protocol = false;
+    let mut candidate: Option<&str> = None;
+    for header in headers.get_all(SEC_WEBSOCKET_PROTOCOL) {
+        let Ok(header) = header.to_str() else { return false; };
+        for part in header.split(',').map(str::trim) {
+            if part == "picto.v1" {
+                if saw_protocol { return false; }
+                saw_protocol = true;
+            } else if let Some(value) = part.strip_prefix("auth.") {
+                if candidate.is_some() { return false; }
+                candidate = Some(value);
+            } else {
+                return false;
+            }
+        }
+    }
+    saw_protocol && candidate.is_some_and(|token| auth.verify(room, token))
+}
+
 // Browsers always send Origin on WebSocket handshakes; CLI clients may omit it.
 // This is CSWSH protection, NOT authentication or authorization.
 fn origin_is_allowed(headers: &HeaderMap) -> bool {
@@ -124,6 +165,24 @@ fn origin_is_allowed(headers: &HeaderMap) -> bool {
 mod tests {
     use super::*;
     use axum::http::HeaderValue;
+
+
+    #[test]
+    fn room_admission_requires_exact_capability() {
+        let auth = RoomAuth::from_hex(&"11".repeat(32)).unwrap();
+        let room = "0123456789abcdef0123456789abcdef";
+        let other = "ffffffffffffffffffffffffffffffff";
+        let token = auth.issue(room).unwrap();
+        let mut headers = HeaderMap::new();
+        assert!(!room_capability_valid(&headers, room, &auth));
+        headers.insert(SEC_WEBSOCKET_PROTOCOL, HeaderValue::from_str(&format!("picto.v1, auth.{token}")).unwrap());
+        assert!(room_capability_valid(&headers, room, &auth));
+        assert!(!room_capability_valid(&headers, other, &auth));
+        headers.insert(SEC_WEBSOCKET_PROTOCOL, HeaderValue::from_static("picto.v1, auth.bad"));
+        assert!(!room_capability_valid(&headers, room, &auth));
+        headers.insert(SEC_WEBSOCKET_PROTOCOL, HeaderValue::from_str(&format!("picto.v1, auth.{token}, auth.{token}")).unwrap());
+        assert!(!room_capability_valid(&headers, room, &auth));
+    }
 
     #[test]
     fn forbids_foreign_browser_origins() {
