@@ -158,7 +158,7 @@ loaderFunc = (loader, resources) => {
     topyElem.onpaste = function (e) {
         if (!joinedRoom) return;
         e.preventDefault();
-        let chars = (e.clipboardData || window.clipboardData).getData("text");
+        let chars = Array.from((e.clipboardData || window.clipboardData).getData("text"));
         for (let i = 0; i < chars.length; i++) {
             if (chars[i] === "\n") {
                 addCharacterDirect("ENTER");
@@ -280,7 +280,7 @@ loaderFunc = (loader, resources) => {
             if (e.inputType === "deleteContentBackward") return addCharacterDirect("BACKSPACE");
             if (e.inputType === "insertLineBreak") return addCharacterDirect("ENTER");
             if (!e.data) return;
-            let chars = e.data.split("");
+            let chars = Array.from(e.data);
             for (let i = 0; i < chars.length; i++) {
                 if (chars[i] === "\n") {
                     addCharacterDirect("ENTER");
