@@ -3,6 +3,8 @@
 This is an isolated, **room-capability-gated but unencrypted** transport prototype. It is not a replacement for the Java application and must not be deployed publicly.
 
 - Binds only to `127.0.0.1:8787`.
+- Serves a **development-only** browser client at `http://127.0.0.1:8787/` with Unicode text, canvas sketches and local print-to-PDF. This UI is explicitly NOT private messaging; all message payloads are plaintext in the relay.
+- Browser UI uses no third-party assets, stores no chat in localStorage, and adds a strict local-only CSP, no-store cache policy, and no-referrer header. Do not use it for confidential data.
 - Accepts binary messages of 1–16384 bytes, drops oversized and text messages.
 - Room IDs are exactly 32 lowercase hex digits. Each room additionally requires a 256-bit HMAC-SHA256 bearer capability; possession of this token permits joining, but does not prove individual identity.
 - At most 256 active rooms. Inactive rooms are reclaimed at the next join.
@@ -15,6 +17,8 @@ This is an isolated, **room-capability-gated but unencrypted** transport prototy
 - HMAC room capabilities provide basic admission, **not** individual identities, forward secrecy, or end-to-end privacy. The relay knows all room capabilities and can read all payloads. No per-IP fairness or replay protection yet.
 
 From `server/`, generate an independent 32-byte root secret using `openssl rand -hex 32`, then export it as `PICTOCHAT_RELAY_SECRET` (never commit it). Generate an admission token with `cargo run -- invite 0123456789abcdef0123456789abcdef`. A client connects to `ws://127.0.0.1:8787/ws/<room-id>` with WebSocket subprotocol values `["picto.v1", "auth.<token>"]`; the server echoes only `picto.v1`. Rotate the root secret to revoke all tokens; individual revocation is not yet supported. **Only use test data until E2EE exists.**
+
+Start `cargo run` from this directory, visit `http://127.0.0.1:8787/` in two local browser tabs and enter the same room ID and invite token in each. Send drawings or text; use the print button and select a local PDF printer to export the visible conversation. This manual browser interaction has not been certified by automation; the CI tests cover the underlying two-peer transport and a source check for external resources.
 
 Run `cargo test` and `cargo run` from this directory. Do not expose the development port through a reverse proxy, container network mapping or firewall.
 
