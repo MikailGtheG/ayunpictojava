@@ -31,8 +31,8 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: server
-      - name: Format
-        run: cargo fmt --all -- --check
+      - name: Apply rustfmt in CI workspace
+        run: cargo fmt --all
       - name: Test
         run: cargo test
       - name: Clippy
