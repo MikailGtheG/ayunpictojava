@@ -75,8 +75,19 @@ async fn main() -> std::io::Result<()> {
 
 fn router(state: AppState) -> Router {
     Router::new()
+        .route("/", get(dev_home))
         .route("/ws/{room_id}", get(connect))
         .with_state(state)
+}
+
+async fn dev_home() -> ([(axum::http::header::HeaderName, &'static str); 2], &'static str) {
+    (
+        [
+            (axum::http::header::CONTENT_TYPE, "text/html; charset=utf-8"),
+            (axum::http::header::CACHE_CONTROL, "no-store"),
+        ],
+        include_str!("../public/index.html"),
+    )
 }
 
 async fn connect(
@@ -171,6 +182,16 @@ mod tests {
     use axum::http::HeaderValue;
 
 
+
+    #[test]
+    fn local_dev_page_contains_no_external_resources_and_has_pdf_action() {
+        let html = include_str!("../public/index.html");
+        assert!(html.contains("window.print()"));
+        assert!(html.contains("ÄÖÜ"));
+        assert!(html.contains("NICHT VERSCHLÜSSELT"));
+        assert!(!html.contains("https://"));
+        assert!(!html.contains("localStorage"));
+    }
 
     #[tokio::test]
     async fn real_websocket_rejects_wrong_capability_and_relays_for_valid_peers() {
