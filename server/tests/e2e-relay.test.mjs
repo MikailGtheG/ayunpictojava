@@ -4,6 +4,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createHmac, webcrypto } from "node:crypto";
 import { importRoomKey, encryptPacket, decryptPacket, ReplayGuard } from "../public/crypto.mjs";
+import { createSessionIdentity, signMessage, verifyMessage, parseTrustedFingerprints } from "../public/identity.mjs";
 
 if (!globalThis.crypto) globalThis.crypto = webcrypto;
 const ROOT = process.env.PICTOCHAT_RELAY_SECRET;
@@ -72,7 +73,10 @@ test("encrypted Unicode text and sketch cross Rust relay without plaintext", asy
       text: "Hallo ÄÖÜ ß – Merhaba ğışç 😊",
       strokes: [[[10,20],[11,22],[15,30]]]
     };
-    const plaintext = encoder.encode(JSON.stringify(message));
+    const aliceIdentity = await createSessionIdentity();
+    const trusted = parseTrustedFingerprints(aliceIdentity.fingerprint);
+    const signed = await signMessage(aliceIdentity, ROOM_A, message);
+    const plaintext = encoder.encode(JSON.stringify(signed));
     const ciphertext = await encryptPacket(rootKey, ROOM_A, plaintext);
     assert.equal(ciphertext[0], 1);
     assert.equal(Buffer.from(ciphertext).includes(Buffer.from(plaintext)), false);
@@ -87,7 +91,8 @@ test("encrypted Unicode text and sketch cross Rust relay without plaintext", asy
     await assert.rejects(decryptPacket(wrong, ROOM_A, onWire));
     const guard = new ReplayGuard();
     const restored = await decryptPacket(rootKey, ROOM_A, onWire, guard);
-    assert.deepEqual(JSON.parse(decoder.decode(restored)), message);
+    const receivedSigned = JSON.parse(decoder.decode(restored));
+    assert.deepEqual((await verifyMessage(receivedSigned, ROOM_A, trusted)).body, message);
     await assert.rejects(decryptPacket(rootKey, ROOM_A, onWire, guard), /Repeated packet/);
   } finally {
     for (const socket of connections) socket.close();
