@@ -132,7 +132,7 @@ async fn session(socket: WebSocket, room: Arc<pictochat_relay::Room>, _permit: O
 fn room_capability_valid(headers: &HeaderMap, room: &str, auth: &RoomAuth) -> bool {
     let mut saw_protocol = false;
     let mut candidate: Option<&str> = None;
-    for header in headers.get_all(SEC_WEBSOCKET_PROTOCOL) {
+    for header in headers.get_all(SEC_WEBSOCKET_PROTOCOL).iter() {
         let Ok(header) = header.to_str() else { return false; };
         for part in header.split(',').map(str::trim) {
             if part == "picto.v1" {
