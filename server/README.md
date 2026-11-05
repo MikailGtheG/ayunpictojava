@@ -6,6 +6,7 @@ This is an isolated, **unauthenticated and unencrypted** transport prototype. It
 - Accepts binary messages of 1–16384 bytes, drops oversized and text messages.
 - Room IDs are exactly 32 lowercase hex digits. This is **not** access control: knowledge of the ID permits joining.
 - At most 256 active rooms. Inactive rooms are reclaimed at the next join.
+- Each room accepts at most 16 concurrent WebSocket sessions; over-capacity handshakes receive HTTP 503. Slots are released when a session ends.
 - At most 128 concurrent upgraded WebSocket sessions (extra handshakes receive HTTP 503).
 - Each connection has a fixed one-second quota of 20 binary messages. Exceeding the quota terminates that connection. This is a basic abuse guard, not fairness across IPs or identities.
 - Browser WebSocket origins are restricted to `http://127.0.0.1:8787` and `http://localhost:8787`. Non-browser clients can omit the Origin header, so this is **not authentication**.
