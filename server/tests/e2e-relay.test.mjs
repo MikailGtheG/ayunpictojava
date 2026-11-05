@@ -78,7 +78,7 @@ test("encrypted Unicode text and sketch cross Rust relay without plaintext", asy
     const signed = await signMessage(aliceIdentity, ROOM_A, message);
     const plaintext = encoder.encode(JSON.stringify(signed));
     const ciphertext = await encryptPacket(rootKey, ROOM_A, plaintext);
-    assert.equal(ciphertext[0], 1);
+    assert.equal(ciphertext[0], 2);
     assert.equal(Buffer.from(ciphertext).includes(Buffer.from(plaintext)), false);
 
     const pending = nextBinary(bob);
