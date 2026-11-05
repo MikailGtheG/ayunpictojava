@@ -19,7 +19,7 @@ test("AES-GCM preserves Unicode and does not expose plaintext on the wire", asyn
   assert.equal(key.extractable, false);
   const plain = encoder.encode("Ä Ö Ü ß ğ ı ş 😊 ✏️");
   const packet = await encryptPacket(key, ROOM, plain);
-  assert.equal(packet[0], 1);
+  assert.equal(packet[0], 2);
   assert.ok(packet.length <= MAX_WIRE_BYTES);
   assert.equal(Buffer.from(packet).includes(Buffer.from(plain)), false);
   const restored = await decryptPacket(key, ROOM, packet, new ReplayGuard());
