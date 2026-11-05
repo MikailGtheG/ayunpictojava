@@ -37,3 +37,8 @@ jobs:
         run: cargo test
       - name: Clippy
         run: cargo clippy --all-targets -- -D warnings
+      - name: Browser crypto and UI tests
+        run: |
+          node --version
+          node --check public/crypto.mjs
+          node --test tests/*.test.mjs
