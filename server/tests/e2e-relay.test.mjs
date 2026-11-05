@@ -105,6 +105,31 @@ test("room A cannot decrypt the authenticated ciphertext from room B", async () 
   await assert.rejects(decryptPacket(key, ROOM_B, packet));
 });
 
+test("shared chat key alone cannot impersonate a pinned device", async () => {
+  const connections = [];
+  try {
+    const attackerSocket = await openSocket(ROOM_A, admission(ROOM_A));
+    connections.push(attackerSocket);
+    const receiverSocket = await openSocket(ROOM_A, admission(ROOM_A));
+    connections.push(receiverSocket);
+    const pinned = await createSessionIdentity();
+    const attacker = await createSessionIdentity();
+    const trusted = parseTrustedFingerprints(pinned.fingerprint);
+    const groupKey = await importRoomKey(KEY);
+    const impersonated = await signMessage(attacker, ROOM_A, {
+      v: 1, text: "I claim to be your trusted device", strokes: []
+    });
+    const packet = await encryptPacket(groupKey, ROOM_A, encoder.encode(JSON.stringify(impersonated)));
+    const incoming = nextBinary(receiverSocket);
+    attackerSocket.send(packet);
+    const received = await incoming;
+    const clear = JSON.parse(decoder.decode(await decryptPacket(groupKey, ROOM_A, received)));
+    await assert.rejects(verifyMessage(clear, ROOM_A, trusted), /Untrusted sender fingerprint/);
+  } finally {
+    for (const socket of connections) socket.close();
+  }
+});
+
 test("legacy plaintext packets cause the sending WebSocket to close", async () => {
   const alice = await openSocket(ROOM_A, admission(ROOM_A));
   try {
