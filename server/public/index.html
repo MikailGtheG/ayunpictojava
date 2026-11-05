@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PictoChat 2.0 – lokaler Entwicklungsclient</title>
+<style>
+:root{font-family:system-ui,sans-serif;background:#dcd9cf;color:#242424}
+*{box-sizing:border-box}
+body{max-width:780px;margin:18px auto;padding:0 12px}
+header{background:#292929;color:#fff;padding:12px 18px;border-radius:12px 12px 0 0}
+h1{font-size:1.2rem;margin:0}
+.warning{background:#fff0bc;color:#402600;padding:10px 14px;border:2px solid #a97800;font-weight:650}
+.settings{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:14px;background:#f5f3ee}
+label{display:block;font-size:.82rem;font-weight:700}
+input,textarea,button{font:inherit}
+input{width:100%;padding:7px}
+button{padding:8px 12px;border:1px solid #777;border-radius:6px;background:#f2f2f2;cursor:pointer}
+button:disabled{opacity:.45;cursor:not-allowed}
+.controls{grid-column:1/-1;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+#status{font-weight:700}
+#messages{background:#fff;min-height:230px;height:44vh;overflow-y:auto;padding:12px;border:2px solid #555}
+.entry{border-bottom:1px solid #ccc;padding:7px;overflow-wrap:anywhere}
+.entry .who{font-weight:700;color:#333}
+.entry .body{white-space:pre-wrap}
+.entry img{max-width:100%;image-rendering:pixelated;display:block;margin-top:6px}
+.editor{background:#f5f3ee;padding:12px;border-radius:0 0 12px 12px}
+textarea{width:100%;height:70px;resize:vertical;padding:8px}
+#drawing{display:block;width:100%;height:170px;background:white;border:2px solid #333;touch-action:none;cursor:crosshair}
+.actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.note{font-size:.78rem;color:#555}
+@media print{
+  :root{background:white}
+  body{max-width:none;margin:0;padding:0}
+  .settings,.editor,.controls,.warning,.note{display:none!important}
+  header{background:white;color:black;border-radius:0;padding:0 0 8px}
+  #messages{height:auto;overflow:visible;border:0;min-height:0;padding:0}
+}
+@media(max-width:500px){.settings{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header><h1>PictoChat 2.0 · Entwicklungsclient</h1></header>
+<div class="warning">NICHT VERSCHLÜSSELT – Keine vertraulichen Nachrichten senden. Nur lokal testen.</div>
+<section class="settings" aria-label="Raumzugang">
+  <div><label for="room">Raum-ID (32 Kleinbuchstaben/Hex-Zeichen)</label><input id="room" minlength="32" maxlength="32" autocomplete="off" spellcheck="false" value="0123456789abcdef0123456789abcdef"></div>
+  <div><label for="token">Einladungstoken (64 Hex-Zeichen)</label><input id="token" type="password" minlength="64" maxlength="64" autocomplete="off" spellcheck="false"></div>
+  <div class="controls"><button id="connect">Verbinden</button><button id="disconnect" disabled>Trennen</button><span id="status" role="status">Nicht verbunden</span></div>
+</section>
+<main>
+<section id="messages" aria-label="Nachrichten" aria-live="polite"></section>
+<div class="editor">
+  <label for="text">Nachricht (Unicode/Deutsch/Türkisch)</label>
+  <textarea id="text" maxlength="2000" placeholder="Hallo! ÄÖÜ ß ğışç 😊"></textarea>
+  <label for="drawing">Zeichnen mit Maus, Finger oder Stift</label>
+  <canvas id="drawing" width="512" height="170"></canvas>
+  <div class="actions">
+    <button id="send" disabled>Nachricht senden</button>
+    <button id="clear">Zeichnung löschen</button>
+    <button id="pdf">Lokal als PDF drucken</button>
+    <button id="erase">Lokalen Verlauf löschen</button>
+  </div>
+  <p class="note">Kein Chat-LocalStorage, kein Tracking, keine externen Skripte. PDF über den lokalen Druckdialog („Als PDF speichern“). Andere Teilnehmer können Inhalte kopieren. Verbindung nur zu diesem localhost-Server.</p>
+</div>
+</main>
+<script>
+"use strict";
+const $=id=>document.getElementById(id);
+const room=$("room"),token=$("token"),status=$("status"),messages=$("messages");
+const canvas=$("drawing"),ctx=canvas.getContext("2d"),encoder=new TextEncoder(),decoder=new TextDecoder("utf-8",{fatal:true});
+let socket=null,strokes=[],current=null;
+const MAX_BYTES=16384,MAX_POINTS=1200;
+const setStatus=t=>status.textContent=t;
+const enabled=on=>{$("send").disabled=!on;$("disconnect").disabled=!on;$("connect").disabled=on;room.disabled=on;token.disabled=on;};
+function xy(e){
+ const b=canvas.getBoundingClientRect();
+ return [Math.max(0,Math.min(512,Math.round((e.clientX-b.left)*512/b.width))),
+         Math.max(0,Math.min(170,Math.round((e.clientY-b.top)*170/b.height)))];
+}
+function line(points,context){
+ if(!points.length)return;
+ context.beginPath();context.moveTo(points[0][0],points[0][1]);
+ for(const p of points.slice(1))context.lineTo(p[0],p[1]);
+ if(points.length===1){context.lineTo(points[0][0]+.1,points[0][1]+.1);}
+ context.stroke();
+}
+function redraw(){
+ ctx.clearRect(0,0,512,170);ctx.lineWidth=2.5;ctx.strokeStyle="#111";ctx.lineJoin="round";ctx.lineCap="round";
+ for(const stroke of strokes)line(stroke,ctx);
+}
+canvas.addEventListener("pointerdown",e=>{if(strokes.flat().length>=MAX_POINTS)return;current=[xy(e)];strokes.push(current);canvas.setPointerCapture(e.pointerId);redraw();});
+canvas.addEventListener("pointermove",e=>{
+ if(!current||strokes.reduce((n,s)=>n+s.length,0)>=MAX_POINTS)return;
+ const p=xy(e),last=current[current.length-1];
+ if(p[0]!==last[0]||p[1]!==last[1]){current.push(p);redraw();}
+});
+for(const event of ["pointerup","pointercancel","lostpointercapture"])canvas.addEventListener(event,()=>{current=null;});
+$("clear").addEventListener("click",()=>{strokes=[];current=null;redraw();});
+function render(data,who){
+ const div=document.createElement("article");div.className="entry";
+ const name=document.createElement("div");name.className="who";name.textContent=who;
+ div.append(name);
+ if(data.text){const p=document.createElement("div");p.className="body";p.textContent=data.text;div.append(p);}
+ if(Array.isArray(data.strokes)&&data.strokes.length){
+   const painting=document.createElement("canvas");painting.width=512;painting.height=170;
+   const context=painting.getContext("2d");context.strokeStyle="#111";context.lineWidth=2.5;context.lineJoin="round";context.lineCap="round";
+   for(const stroke of data.strokes)line(stroke,context);
+   const image=document.createElement("img");image.alt="Gezeichnete Nachricht";image.src=painting.toDataURL("image/png");div.append(image);
+ }
+ messages.append(div);messages.scrollTop=messages.scrollHeight;
+}
+function valid(data){
+ if(!data||data.v!==1||typeof data.text!=="string"||data.text.length>2000||!Array.isArray(data.strokes)||data.strokes.length>1200)return false;
+ let count=0;
+ for(const stroke of data.strokes){
+  if(!Array.isArray(stroke)||++count>MAX_POINTS||stroke.length>MAX_POINTS)return false;
+  for(const p of stroke)if(!Array.isArray(p)||p.length!==2||!p.every(Number.isInteger)||p[0]<0||p[0]>512||p[1]<0||p[1]>170)return false;
+ }
+ return true;
+}
+$("connect").addEventListener("click",()=>{
+ const id=room.value.trim(),cap=token.value.trim();
+ if(!/^[0-9a-f]{32}$/.test(id)||!/^[0-9a-f]{64}$/.test(cap)){setStatus("Ungültige Raum-ID oder Zugangstoken");return;}
+ if(socket)return;
+ const ws=new WebSocket("ws://"+location.host+"/ws/"+id,["picto.v1","auth."+cap]);
+ ws.binaryType="arraybuffer";socket=ws;setStatus("Verbinde …");$("connect").disabled=true;
+ ws.onopen=()=>{if(socket===ws){enabled(true);setStatus("Verbunden (unverschlüsselt)");}};
+ ws.onmessage=e=>{
+  if(!(e.data instanceof ArrayBuffer)||e.data.byteLength>MAX_BYTES)return;
+  try{const data=JSON.parse(decoder.decode(e.data));if(valid(data))render(data,"Teilnehmer");}catch{/* Ignore invalid packets */}
+ };
+ ws.onerror=()=>setStatus("Verbindungsfehler oder Raumzugang abgelehnt");
+ ws.onclose=()=>{if(socket===ws){socket=null;enabled(false);setStatus("Getrennt");}};
+});
+$("disconnect").addEventListener("click",()=>socket?.close());
+$("send").addEventListener("click",()=>{
+ if(!socket||socket.readyState!==WebSocket.OPEN)return;
+ const data={v:1,text:$("text").value,strokes:strokes.map(s=>s.map(p=>[...p]))};
+ if(!data.text.trim()&&!data.strokes.length)return;
+ const bytes=encoder.encode(JSON.stringify(data));
+ if(bytes.length>MAX_BYTES){setStatus("Nachricht zu groß (max. 16 KiB)");return;}
+ socket.send(bytes);$("text").value="";strokes=[];redraw();
+});
+$("pdf").addEventListener("click",()=>window.print());
+$("erase").addEventListener("click",()=>messages.replaceChildren());
+window.addEventListener("beforeunload",()=>socket?.close());
+</script>
+</body>
+</html>
