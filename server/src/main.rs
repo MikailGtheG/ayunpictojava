@@ -214,7 +214,9 @@ mod tests {
         let html = include_str!("../public/index.html");
         assert!(html.contains("window.print()"));
         assert!(html.contains("ÄÖÜ"));
-        assert!(html.contains("EXPERIMENTELLE AES-256-GCM-VERSCHLÜSSELUNG"));
+        assert!(html.contains("EXPERIMENTELLE AES-GCM- UND P-256-SIGNATUREN"));
+        assert!(html.contains("identity.mjs"));
+        assert!(html.contains("verifyMessage("));
         assert!(html.contains("encryptPacket("));
         assert!(html.contains("decryptPacket("));
         assert!(!html.contains("https://"));
