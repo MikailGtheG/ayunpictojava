@@ -1,6 +1,6 @@
+//! Experimental in-memory transport with room-capability admission.
+//! NOT end-to-end encrypted. Never expose to untrusted networks.
 pub mod auth;
-//! Experimental in-memory transport. NOT encrypted or authenticated.
-//! Never expose to an untrusted network until membership + E2EE are implemented.
 use std::{collections::HashMap, sync::{Arc, Mutex, Weak}};
 use tokio::sync::{broadcast, OwnedSemaphorePermit, Semaphore};
 
