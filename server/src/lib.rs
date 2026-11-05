@@ -5,7 +5,7 @@ use std::{collections::HashMap, sync::{Arc, Mutex, Weak}};
 use tokio::sync::{broadcast, OwnedSemaphorePermit, Semaphore};
 
 pub const MAX_FRAME_BYTES: usize = 16 * 1024;
-/// Protocol v1 wire envelope: version byte + 96-bit IV + >=128-bit GCM tag.
+/// Protocol v2 signed-message wire envelope: version byte + 96-bit IV + >=128-bit GCM tag.
 pub const MIN_ENVELOPE_BYTES: usize = 1 + 12 + 16;
 pub const ROOM_CAPACITY: usize = 32;
 pub const MAX_ACTIVE_ROOMS: usize = 256;
@@ -38,7 +38,7 @@ impl Room {
 
 /// Checks wire format only. It cannot authenticate ciphertext; that is done by the client.
 pub fn valid_envelope(bytes: &[u8]) -> bool {
-    bytes.len() >= MIN_ENVELOPE_BYTES && bytes.len() <= MAX_FRAME_BYTES && bytes[0] == 1
+    bytes.len() >= MIN_ENVELOPE_BYTES && bytes.len() <= MAX_FRAME_BYTES && bytes[0] == 2
 }
 
 #[derive(Default)]
@@ -77,7 +77,7 @@ mod tests {
         let rooms = Rooms::default();
         let room = rooms.join(ID).unwrap();
         let mut receiver = room.subscribe();
-        let frame = vec![1u8; MIN_ENVELOPE_BYTES];
+        let frame = vec![2u8; MIN_ENVELOPE_BYTES];
         room.publish(frame.clone()).unwrap();
         assert_eq!(receiver.recv().await.unwrap(), frame);
     }
@@ -89,11 +89,12 @@ mod tests {
         assert!(rooms.join("ABCDEF0123456789ABCDEF0123456789").is_err());
         let room = rooms.join(ID).unwrap();
         assert!(room.publish(vec![]).is_err());
-        assert!(room.publish(vec![1; MAX_FRAME_BYTES + 1]).is_err());
+        assert!(room.publish(vec![2; MAX_FRAME_BYTES + 1]).is_err());
         assert!(room.publish(b"plaintext should not relay".to_vec()).is_err());
         assert!(room.publish(vec![0; MIN_ENVELOPE_BYTES]).is_err());
-        assert!(room.publish(vec![1; MIN_ENVELOPE_BYTES - 1]).is_err());
-        assert!(room.publish(vec![1; MIN_ENVELOPE_BYTES]).is_ok());
+        assert!(room.publish(vec![2; MIN_ENVELOPE_BYTES - 1]).is_err());
+        assert!(room.publish(vec![1; MIN_ENVELOPE_BYTES]).is_err());
+        assert!(room.publish(vec![2; MIN_ENVELOPE_BYTES]).is_ok());
     }
 
     #[test]
