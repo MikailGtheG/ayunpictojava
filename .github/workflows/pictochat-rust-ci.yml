@@ -41,7 +41,8 @@ jobs:
         run: |
           node --version
           node --check public/crypto.mjs
-          node --test tests/crypto.test.mjs tests/ui.test.mjs
+          node --check public/identity.mjs
+          node --test tests/crypto.test.mjs tests/identity.test.mjs tests/ui.test.mjs
       - name: End-to-end encrypted WebSocket test
         env:
           PICTOCHAT_RELAY_SECRET: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
