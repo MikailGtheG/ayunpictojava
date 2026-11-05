@@ -1,5 +1,6 @@
 //! Development-only loopback WebSocket relay.
-//! No cryptography, user identity, room authorization, or TLS yet.
+//! Client-side experimental AES-GCM with bearer room admission. No verified identities,
+//! automatic key distribution, forward secrecy, or TLS yet.
 use std::{net::SocketAddr, sync::Arc, time::{Duration, Instant}};
 use axum::{
     extract::{
@@ -69,7 +70,7 @@ async fn main() -> std::io::Result<()> {
     // Bind exclusively to loopback until the protocol is authenticated and E2EE.
     let addr = SocketAddr::from(([127, 0, 0, 1], 8787));
     let listener = tokio::net::TcpListener::bind(addr).await?;
-    println!("EXPERIMENTAL INSECURE relay listening at {addr} (loopback only)");
+    println!("EXPERIMENTAL PSK relay listening at {addr} (loopback only; NOT production-ready)");
     axum::serve(listener, app).await
 }
 
@@ -136,7 +137,7 @@ async fn session(socket: WebSocket, room: Arc<pictochat_relay::Room>, _permit: O
                         if !quota.permit(Instant::now()) || room.publish(data.to_vec()).is_err() { break; }
                     }
                     Some(Ok(Message::Close(_))) | None | Some(Err(_)) => break,
-                    Some(Ok(Message::Text(_))) => break, // ciphertext frames must be binary
+                    Some(Ok(Message::Text(_))) => break, // encrypted envelopes must be binary
                     _ => {}
                 }
             }
