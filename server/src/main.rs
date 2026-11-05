@@ -78,8 +78,19 @@ fn router(state: AppState) -> Router {
     Router::new()
         .route("/", get(dev_home))
         .route("/crypto.mjs", get(crypto_module))
+        .route("/identity.mjs", get(identity_module))
         .route("/ws/{room_id}", get(connect))
         .with_state(state)
+}
+
+async fn identity_module() -> ([(axum::http::header::HeaderName, &'static str); 2], &'static str) {
+    (
+        [
+            (axum::http::header::CONTENT_TYPE, "text/javascript; charset=utf-8"),
+            (axum::http::header::CACHE_CONTROL, "no-store"),
+        ],
+        include_str!("../public/identity.mjs"),
+    )
 }
 
 async fn crypto_module() -> ([(axum::http::header::HeaderName, &'static str); 2], &'static str) {
