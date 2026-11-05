@@ -65,14 +65,18 @@ async fn main() -> std::io::Result<()> {
         slots: Arc::new(Semaphore::new(MAX_CONNECTIONS)),
         auth,
     };
-    let app = Router::new()
-        .route("/ws/{room_id}", get(connect))
-        .with_state(state);
+    let app = router(state);
     // Bind exclusively to loopback until the protocol is authenticated and E2EE.
     let addr = SocketAddr::from(([127, 0, 0, 1], 8787));
     let listener = tokio::net::TcpListener::bind(addr).await?;
     println!("EXPERIMENTAL INSECURE relay listening at {addr} (loopback only)");
     axum::serve(listener, app).await
+}
+
+fn router(state: AppState) -> Router {
+    Router::new()
+        .route("/ws/{room_id}", get(connect))
+        .with_state(state)
 }
 
 async fn connect(
@@ -166,6 +170,52 @@ mod tests {
     use super::*;
     use axum::http::HeaderValue;
 
+
+
+    #[tokio::test]
+    async fn real_websocket_rejects_wrong_capability_and_relays_for_valid_peers() {
+        use tokio_tungstenite::{connect_async, tungstenite::{client::IntoClientRequest, Message as ClientMessage}};
+        use tokio::time::{timeout, Duration};
+
+        let auth = Arc::new(RoomAuth::from_hex(&"11".repeat(32)).unwrap());
+        let room = "0123456789abcdef0123456789abcdef";
+        let token = auth.issue(room).unwrap();
+        let state = AppState {
+            rooms: Arc::new(Rooms::default()),
+            slots: Arc::new(Semaphore::new(MAX_CONNECTIONS)),
+            auth,
+        };
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            axum::serve(listener, router(state)).await.unwrap();
+        });
+        let url = format!("ws://{address}/ws/{room}");
+
+        let make_request = |capability: &str| {
+            let mut request = url.as_str().into_client_request().unwrap();
+            request.headers_mut().insert(
+                SEC_WEBSOCKET_PROTOCOL,
+                format!("picto.v1, auth.{capability}").parse().unwrap()
+            );
+            request
+        };
+
+        let invalid = timeout(Duration::from_secs(3), connect_async(make_request(&"00".repeat(32))))
+            .await.unwrap();
+        assert!(matches!(invalid, Err(tokio_tungstenite::tungstenite::Error::Http(response))
+            if response.status() == StatusCode::FORBIDDEN));
+
+        let (mut alice, alice_response) = timeout(Duration::from_secs(3), connect_async(make_request(&token)))
+            .await.unwrap().unwrap();
+        assert_eq!(alice_response.headers().get(SEC_WEBSOCKET_PROTOCOL).unwrap(), "picto.v1");
+        let (mut bob, _) = timeout(Duration::from_secs(3), connect_async(make_request(&token)))
+            .await.unwrap().unwrap();
+        alice.send(ClientMessage::Binary(b"opaque-message".to_vec().into())).await.unwrap();
+        let received = timeout(Duration::from_secs(3), bob.next()).await.unwrap().unwrap().unwrap();
+        assert_eq!(received.into_data().as_ref(), b"opaque-message");
+        server.abort();
+    }
 
     #[test]
     fn room_admission_requires_exact_capability() {
