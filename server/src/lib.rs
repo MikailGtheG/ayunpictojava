@@ -1,17 +1,24 @@
 //! Experimental in-memory transport. NOT encrypted or authenticated.
 //! Never expose to an untrusted network until membership + E2EE are implemented.
 use std::{collections::HashMap, sync::{Arc, Mutex, Weak}};
-use tokio::sync::broadcast;
+use tokio::sync::{broadcast, OwnedSemaphorePermit, Semaphore};
 
 pub const MAX_FRAME_BYTES: usize = 16 * 1024;
 pub const ROOM_CAPACITY: usize = 32;
 pub const MAX_ACTIVE_ROOMS: usize = 256;
+pub const MAX_PARTICIPANTS_PER_ROOM: usize = 16;
 
 pub struct Room {
     sender: broadcast::Sender<Vec<u8>>,
+    participants: Arc<Semaphore>,
 }
 
 impl Room {
+    /// Reserve one live connection slot; releasing the permit frees it automatically.
+    pub fn try_enter(&self) -> Result<OwnedSemaphorePermit, &'static str> {
+        self.participants.clone().try_acquire_owned().map_err(|_| "room full")
+    }
+
     pub fn subscribe(&self) -> broadcast::Receiver<Vec<u8>> {
         self.sender.subscribe()
     }
@@ -46,7 +53,7 @@ impl Rooms {
             return Err("too many active rooms");
         }
         let (sender, _) = broadcast::channel(ROOM_CAPACITY);
-        let room = Arc::new(Room { sender });
+        let room = Arc::new(Room { sender, participants: Arc::new(Semaphore::new(MAX_PARTICIPANTS_PER_ROOM)) });
         rooms.insert(room_id.to_owned(), Arc::downgrade(&room));
         Ok(room)
     }
@@ -86,6 +93,30 @@ mod tests {
         assert!(rooms.join(&format!("{:032x}", MAX_ACTIVE_ROOMS)).is_err());
         active.pop();
         assert!(rooms.join(&format!("{:032x}", MAX_ACTIVE_ROOMS)).is_ok());
+    }
+
+    #[test]
+    fn room_has_sixteen_slots_and_releases_on_disconnect() {
+        let room = Rooms::default().join(ID).unwrap();
+        let mut participants = Vec::new();
+        for _ in 0..MAX_PARTICIPANTS_PER_ROOM {
+            participants.push(room.try_enter().unwrap());
+        }
+        assert!(room.try_enter().is_err());
+        participants.pop();
+        assert!(room.try_enter().is_ok());
+    }
+
+    #[test]
+    fn independent_rooms_have_independent_limits() {
+        let rooms = Rooms::default();
+        let first = rooms.join(ID).unwrap();
+        let another = rooms.join("ffffffffffffffffffffffffffffffff").unwrap();
+        let _permits: Vec<_> = (0..MAX_PARTICIPANTS_PER_ROOM)
+            .map(|_| first.try_enter().unwrap())
+            .collect();
+        assert!(first.try_enter().is_err());
+        assert!(another.try_enter().is_ok());
     }
 
     #[test]
