@@ -11,7 +11,7 @@ use axum::{
     Router,
 };
 use futures_util::{SinkExt, StreamExt};
-use pictochat_relay::{auth::RoomAuth, Rooms, MAX_FRAME_BYTES};
+use pictochat_relay::{auth::RoomAuth, Rooms, MAX_FRAME_BYTES, MIN_ENVELOPE_BYTES};
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 
 const MAX_CONNECTIONS: usize = 128;
@@ -249,9 +249,10 @@ mod tests {
         assert_eq!(alice_response.headers().get(SEC_WEBSOCKET_PROTOCOL).unwrap(), "picto.v1");
         let (mut bob, _) = timeout(Duration::from_secs(3), connect_async(make_request(&token)))
             .await.unwrap().unwrap();
-        alice.send(ClientMessage::Binary(b"opaque-message".to_vec().into())).await.unwrap();
+        let envelope = vec![1u8; MIN_ENVELOPE_BYTES];
+        alice.send(ClientMessage::Binary(envelope.clone().into())).await.unwrap();
         let received = timeout(Duration::from_secs(3), bob.next()).await.unwrap().unwrap().unwrap();
-        assert_eq!(received.into_data().as_ref(), b"opaque-message");
+        assert_eq!(received.into_data().as_ref(), envelope.as_slice());
         server.abort();
     }
 
