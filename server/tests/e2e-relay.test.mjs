@@ -99,3 +99,36 @@ test("room A cannot decrypt the authenticated ciphertext from room B", async () 
   const packet = await encryptPacket(key, ROOM_A, encoder.encode("room A only"));
   await assert.rejects(decryptPacket(key, ROOM_B, packet));
 });
+
+test("legacy plaintext packets cause the sending WebSocket to close", async () => {
+  const alice = await openSocket(ROOM_A, admission(ROOM_A));
+  try {
+    const closed = new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error("Plaintext socket was not closed")), 4000);
+      alice.addEventListener("close", () => { clearTimeout(timer); resolve(); }, { once: true });
+    });
+    alice.send(JSON.stringify({ v: 1, text: "unprotected", strokes: [] }));
+    await closed;
+  } finally {
+    alice.close();
+  }
+});
+
+test("cross-room ciphertext cannot be decrypted with the same key in another room", async () => {
+  const connections = [];
+  try {
+    const sender = await openSocket(ROOM_B, admission(ROOM_B));
+    connections.push(sender);
+    const recipient = await openSocket(ROOM_B, admission(ROOM_B));
+    connections.push(recipient);
+    const key = await importRoomKey(KEY);
+    const packet = await encryptPacket(key, ROOM_B, encoder.encode("Only room B"));
+    const incoming = nextBinary(recipient);
+    sender.send(packet);
+    const received = await incoming;
+    assert.equal(decoder.decode(await decryptPacket(key, ROOM_B, received)), "Only room B");
+    await assert.rejects(decryptPacket(key, ROOM_A, received));
+  } finally {
+    for (const socket of connections) socket.close();
+  }
+});
