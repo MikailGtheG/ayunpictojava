@@ -321,7 +321,7 @@
     document.getElementById("name_box").value = localStorage.getItem("username");
 
     function fixUserbox(object) {
-        object.value = object.value.replace(/[^\w\s]/gi, '');
+        object.value = object.value.replace(/[^\p{L}\p{M}\p{N}_ ]/gu, '');
     }
 
     let token = true; // set this to true if no captcha
@@ -338,7 +338,7 @@
         if (authed) return;
         const color = pickr.getColor().toHEXA().toString().replace("#", "0x");
         playerData.name = document.getElementById("name_box").value;
-        playerData.name = playerData.name.replace(/[^\w\s]/gi, '');
+        playerData.name = playerData.name.replace(/[^\p{L}\p{M}\p{N}_ ]/gu, '');
         playerData.color = parseInt(color, 16);
         const obj = {type: 'cl_verifyName', player: playerData, token: token};
         websocket.send(JSON.stringify(obj));
