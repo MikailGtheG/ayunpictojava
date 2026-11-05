@@ -73,11 +73,12 @@ async fn connect(
     let permit = state.slots.clone().try_acquire_owned()
         .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
     let room = state.rooms.join(&room_id).map_err(|_| StatusCode::BAD_REQUEST)?;
+    let room_permit = room.try_enter().map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
     Ok(ws.max_message_size(MAX_FRAME_BYTES).max_frame_size(MAX_FRAME_BYTES)
-        .on_upgrade(move |socket| session(socket, room, permit)))
+        .on_upgrade(move |socket| session(socket, room, permit, room_permit)))
 }
 
-async fn session(socket: WebSocket, room: Arc<pictochat_relay::Room>, _permit: OwnedSemaphorePermit) {
+async fn session(socket: WebSocket, room: Arc<pictochat_relay::Room>, _permit: OwnedSemaphorePermit, _room_permit: OwnedSemaphorePermit) {
     let (mut outgoing, mut incoming) = socket.split();
     let mut receiver = room.subscribe();
     let mut quota = MessageQuota::new();
