@@ -6,7 +6,7 @@ use axum::{
         ws::{Message, WebSocket, WebSocketUpgrade},
         Path, State,
     },
-    http::StatusCode,
+    http::{header::ORIGIN, HeaderMap, StatusCode},
     routing::get,
     Router,
 };
@@ -28,8 +28,12 @@ async fn main() -> std::io::Result<()> {
 async fn connect(
     State(rooms): State<Arc<Rooms>>,
     Path(room_id): Path<String>,
+    headers: HeaderMap,
     ws: WebSocketUpgrade,
 ) -> Result<axum::response::Response, StatusCode> {
+    if !origin_is_allowed(&headers) {
+        return Err(StatusCode::FORBIDDEN);
+    }
     let room = rooms.join(&room_id).map_err(|_| StatusCode::BAD_REQUEST)?;
     Ok(ws.max_message_size(MAX_FRAME_BYTES).max_frame_size(MAX_FRAME_BYTES)
         .on_upgrade(move |socket| session(socket, room)))
@@ -60,5 +64,42 @@ async fn session(socket: WebSocket, room: Arc<pictochat_relay::Room>) {
                 }
             }
         }
+    }
+}
+
+
+// Browsers always send Origin on WebSocket handshakes; CLI clients may omit it.
+// This is CSWSH protection, NOT authentication or authorization.
+fn origin_is_allowed(headers: &HeaderMap) -> bool {
+    match headers.get(ORIGIN) {
+        None => true,
+        Some(origin) => matches!(
+            origin.to_str(),
+            Ok("http://127.0.0.1:8787" | "http://localhost:8787")
+        ),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::http::HeaderValue;
+
+    #[test]
+    fn forbids_foreign_browser_origins() {
+        let mut headers = HeaderMap::new();
+        headers.insert(ORIGIN, HeaderValue::from_static("https://evil.example"));
+        assert!(!origin_is_allowed(&headers));
+        headers.insert(ORIGIN, HeaderValue::from_static("null"));
+        assert!(!origin_is_allowed(&headers));
+        headers.insert(ORIGIN, HeaderValue::from_static("http://localhost:8787"));
+        assert!(origin_is_allowed(&headers));
+        headers.insert(ORIGIN, HeaderValue::from_static("http://127.0.0.1:8787"));
+        assert!(origin_is_allowed(&headers));
+    }
+
+    #[test]
+    fn permits_headless_client_without_origin() {
+        assert!(origin_is_allowed(&HeaderMap::new()));
     }
 }
