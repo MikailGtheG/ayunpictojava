@@ -3,7 +3,7 @@
 export const MAX_WIRE_BYTES = 16 * 1024;
 const IV_BYTES = 12;
 const MIN_PACKET_BYTES = 1 + IV_BYTES + 16;
-const VERSION = 1;
+const VERSION = 2;
 const encoder = new TextEncoder();
 
 export function parseKeyHex(value) {
@@ -21,7 +21,7 @@ export async function importRoomKey(hex) {
 
 function associatedData(room) {
   if (!/^[0-9a-f]{32}$/.test(room)) throw new Error("Invalid room ID");
-  return encoder.encode("pictochat-psk-v1:" + room);
+  return encoder.encode("pictochat-signed-v2:" + room);
 }
 
 export async function encryptPacket(key, room, plaintext) {
