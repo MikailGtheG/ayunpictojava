@@ -1,5 +1,5 @@
-//! Experimental endpoint-owned MLS state. The relay never holds these objects.
-//! Volatile-only client state: no account recovery, persistence, or credential trust yet.
+//! Endpoint-owned, volatile MLS state. This is a test client, not an identity service.
+//! All externally influenced operations return errors rather than terminating the process.
 use openmls::prelude::{tls_codec::*, *};
 use openmls_basic_credential::SignatureKeyPair;
 use openmls_rust_crypto::OpenMlsRustCrypto;
@@ -20,9 +20,11 @@ pub enum Incoming {
     Removed,
 }
 
-pub fn wrap(kind: u8, data: Vec<u8>) -> Result<Vec<u8>, &'static str> {
+pub type ClientResult<T> = Result<T, &'static str>;
+
+pub fn wrap(kind: u8, data: Vec<u8>) -> ClientResult<Vec<u8>> {
     if !matches!(kind, KIND_APPLICATION | KIND_COMMIT | KIND_WELCOME | KIND_KEY_PACKAGE)
-        || data.is_empty() || data.len() + 2 > MAX_WIRE_SIZE
+        || data.is_empty() || data.len().saturating_add(2) > MAX_WIRE_SIZE
     {
         return Err("invalid MLS transport envelope");
     }
@@ -31,13 +33,20 @@ pub fn wrap(kind: u8, data: Vec<u8>) -> Result<Vec<u8>, &'static str> {
     out.extend(data);
     Ok(out)
 }
-pub fn unwrap(frame: &[u8], kind: u8) -> Result<MlsMessageIn, &'static str> {
+
+pub fn unwrap(frame: &[u8], kind: u8) -> ClientResult<MlsMessageIn> {
     if frame.len() < 3 || frame.len() > MAX_WIRE_SIZE
         || frame[0] != FRAME_VERSION || frame[1] != kind
     {
         return Err("wrong MLS envelope version or kind");
     }
-    MlsMessageIn::tls_deserialize(&mut &frame[2..]).map_err(|_| "invalid MLS TLS encoding")
+    let mut bytes = &frame[2..];
+    let message = MlsMessageIn::tls_deserialize(&mut bytes)
+        .map_err(|_| "invalid MLS TLS encoding")?;
+    if !bytes.is_empty() {
+        return Err("trailing bytes after MLS message");
+    }
+    Ok(message)
 }
 
 pub struct Client {
@@ -48,71 +57,96 @@ pub struct Client {
 }
 
 impl Client {
-    pub fn new(label: &[u8]) -> Self {
+    pub fn new(label: &[u8]) -> ClientResult<Self> {
+        if label.is_empty() || label.len() > 64 {
+            return Err("invalid ephemeral identity label");
+        }
         let provider = OpenMlsRustCrypto::default();
         let signer = SignatureKeyPair::new(CIPHER_SUITE.signature_algorithm())
-            .expect("supported signature algorithm");
-        signer.store(provider.storage()).expect("in-memory key storage");
+            .map_err(|_| "cannot create signing identity")?;
+        signer.store(provider.storage())
+            .map_err(|_| "cannot store signing identity")?;
         let credential = CredentialWithKey {
             credential: BasicCredential::new(label.to_vec()).into(),
             signature_key: signer.public().into(),
         };
-        Self { provider, signer, credential, group: None }
+        Ok(Self { provider, signer, credential, group: None })
     }
 
-    pub fn key_package(&self) -> KeyPackage {
-        KeyPackage::builder().build(
+    pub fn key_package(&self) -> ClientResult<KeyPackage> {
+        let bundle = KeyPackage::builder().build(
             CIPHER_SUITE, &self.provider, &self.signer, self.credential.clone()
-        ).expect("key package generation")
-            .key_package().clone()
+        ).map_err(|_| "cannot create key package")?;
+        Ok(bundle.key_package().clone())
     }
 
-    pub fn start_group(&mut self) {
-        assert!(self.group.is_none(), "group already initialized");
-        self.group = Some(MlsGroup::new(
+    pub fn start_group(&mut self) -> ClientResult<()> {
+        if self.group.is_some() { return Err("group already initialized"); }
+        let group = MlsGroup::new(
             &self.provider, &self.signer,
             &MlsGroupCreateConfig::default(), self.credential.clone()
-        ).expect("MLS group creation"));
+        ).map_err(|_| "cannot create MLS group")?;
+        self.group = Some(group);
+        Ok(())
     }
 
-    pub fn add(&mut self, package: &KeyPackage) -> (Vec<u8>, Vec<u8>) {
-        let group = self.group.as_mut().expect("client needs a group");
+    pub fn add(&mut self, package: &KeyPackage) -> ClientResult<(Vec<u8>, Vec<u8>)> {
+        let group = self.group.as_mut().ok_or("client needs a group")?;
+        if !group.is_active() { return Err("client has been removed"); }
         let (commit, welcome, _) = group.add_members(
             &self.provider, &self.signer, std::slice::from_ref(package)
-        ).expect("MLS add");
-        group.merge_pending_commit(&self.provider).expect("MLS add commit");
-        (
-            wrap(KIND_COMMIT, commit.tls_serialize_detached().expect("serialize commit")).expect("bounded commit"),
-            wrap(KIND_WELCOME, welcome.tls_serialize_detached().expect("serialize welcome")).expect("bounded welcome"),
+        ).map_err(|_| "cannot add MLS participant")?;
+        // Serialize before merging. After the merge, a failed transmission still
+        // requires an explicit recovery policy; this is NOT durable delivery.
+        let commit = wrap(
+            KIND_COMMIT,
+            commit.tls_serialize_detached().map_err(|_| "cannot encode MLS add commit")?
+        )?;
+        let welcome = wrap(
+            KIND_WELCOME,
+            welcome.tls_serialize_detached().map_err(|_| "cannot encode MLS Welcome")?
+        )?;
+        group.merge_pending_commit(&self.provider)
+            .map_err(|_| "cannot merge MLS add commit")?;
+        Ok((commit, welcome))
+    }
+
+    pub fn accept_welcome(&mut self, wire: &[u8], tree: RatchetTreeIn) -> ClientResult<()> {
+        if self.group.is_some() { return Err("group already initialized"); }
+        let welcome = match unwrap(wire, KIND_WELCOME)?.extract() {
+            MlsMessageBodyIn::Welcome(welcome) => welcome,
+            _ => return Err("not an MLS Welcome"),
+        };
+        let staged = StagedWelcome::new_from_welcome(
+            &self.provider, &MlsGroupJoinConfig::default(), welcome, Some(tree)
+        ).map_err(|_| "cannot authenticate MLS Welcome")?;
+        self.group = Some(staged.into_group(&self.provider)
+            .map_err(|_| "cannot join MLS group")?);
+        Ok(())
+    }
+
+    pub fn send(&mut self, message: &[u8]) -> ClientResult<Vec<u8>> {
+        if message.is_empty() || message.len() > MAX_WIRE_SIZE {
+            return Err("message empty or oversized");
+        }
+        let group = self.group.as_mut().ok_or("client needs group")?;
+        if !group.is_active() { return Err("client has been removed"); }
+        let encrypted = group.create_message(&self.provider, &self.signer, message)
+            .map_err(|_| "cannot encrypt MLS application message")?;
+        wrap(
+            KIND_APPLICATION,
+            encrypted.tls_serialize_detached().map_err(|_| "cannot encode MLS ciphertext")?
         )
     }
 
-    pub fn accept_welcome(&mut self, wire: &[u8], tree: RatchetTreeIn) {
-        assert!(self.group.is_none(), "group already initialized");
-        let welcome = match unwrap(wire, KIND_WELCOME).expect("valid transport").extract() {
-            MlsMessageBodyIn::Welcome(welcome) => welcome,
-            _ => panic!("not an MLS Welcome"),
-        };
-        self.group = Some(StagedWelcome::new_from_welcome(
-            &self.provider, &MlsGroupJoinConfig::default(), welcome, Some(tree)
-        ).expect("MLS Welcome must authenticate").into_group(&self.provider).expect("join MLS group"));
-    }
-
-    pub fn send(&mut self, message: &[u8]) -> Vec<u8> {
-        let group = self.group.as_mut().expect("client needs group");
-        let encrypted = group.create_message(&self.provider, &self.signer, message)
-            .expect("MLS encrypt");
-        wrap(KIND_APPLICATION, encrypted.tls_serialize_detached().expect("serialize MLS ciphertext"))
-            .expect("bounded MLS packet")
-    }
-
-    pub fn process(&mut self, wire: &[u8], kind: u8) -> Result<Incoming, &'static str> {
+    pub fn process(&mut self, wire: &[u8], kind: u8) -> ClientResult<Incoming> {
         if !matches!(kind, KIND_APPLICATION | KIND_COMMIT) {
             return Err("not a processable MLS message");
         }
         let protocol = unwrap(wire, kind)?
             .try_into_protocol_message().map_err(|_| "not a protocol message")?;
         let group = self.group.as_mut().ok_or("no joined MLS group")?;
+        if !group.is_active() { return Err("client has been removed"); }
         let processed = group.process_message(&self.provider, protocol)
             .map_err(|_| "MLS message invalid for this member or epoch")?;
         match processed.into_content() {
@@ -128,28 +162,33 @@ impl Client {
         }
     }
 
-    pub fn remove(&mut self, leaf: LeafNodeIndex) -> Vec<u8> {
-        let group = self.group.as_mut().expect("group needed");
+    pub fn remove(&mut self, leaf: LeafNodeIndex) -> ClientResult<Vec<u8>> {
+        let group = self.group.as_mut().ok_or("group needed")?;
+        if !group.is_active() { return Err("client has been removed"); }
         let (commit, _, _) = group.remove_members(&self.provider, &self.signer, &[leaf])
-            .expect("member removal");
-        group.merge_pending_commit(&self.provider).expect("merge removal");
-        wrap(KIND_COMMIT, commit.tls_serialize_detached().expect("serialize removal"))
-            .expect("bounded removal frame")
+            .map_err(|_| "cannot remove MLS member")?;
+        let wire = wrap(
+            KIND_COMMIT,
+            commit.tls_serialize_detached().map_err(|_| "cannot encode MLS removal")?
+        )?;
+        group.merge_pending_commit(&self.provider)
+            .map_err(|_| "cannot merge MLS removal")?;
+        Ok(wire)
     }
 
-    pub fn own_leaf(&self) -> LeafNodeIndex {
-        self.group.as_ref().expect("group needed").own_leaf_index()
+    pub fn own_leaf(&self) -> ClientResult<LeafNodeIndex> {
+        Ok(self.group.as_ref().ok_or("group needed")?.own_leaf_index())
     }
-    pub fn epoch(&self) -> u64 {
-        self.group.as_ref().expect("group needed").epoch().as_u64()
+    pub fn epoch(&self) -> ClientResult<u64> {
+        Ok(self.group.as_ref().ok_or("group needed")?.epoch().as_u64())
     }
-    pub fn count(&self) -> usize {
-        self.group.as_ref().expect("group needed").members().count()
+    pub fn count(&self) -> ClientResult<usize> {
+        Ok(self.group.as_ref().ok_or("group needed")?.members().count())
     }
     pub fn active(&self) -> bool {
-        self.group.as_ref().expect("group needed").is_active()
+        self.group.as_ref().is_some_and(MlsGroup::is_active)
     }
-    pub fn ratchet_tree(&self) -> RatchetTreeIn {
-        self.group.as_ref().expect("group needed").export_ratchet_tree().into()
+    pub fn ratchet_tree(&self) -> ClientResult<RatchetTreeIn> {
+        Ok(self.group.as_ref().ok_or("group needed")?.export_ratchet_tree().into())
     }
 }
