@@ -234,10 +234,10 @@ mod tests {
     #[test]
     fn local_dev_page_contains_no_external_resources_and_has_pdf_action() {
         let html = include_str!("../public/index.html");
-        assert!(html.contains("window.print()"));
+        assert!(include_str!("../public/app.mjs").contains("window.print()"));
         assert!(html.contains("ÄÖÜ"));
         assert!(html.contains("EXPERIMENTELLE AES-GCM- UND P-256-SIGNATUREN"));
-        assert!(html.contains("identity.mjs"));
+        assert!(include_str!("../public/app.mjs").contains("identity.mjs"));
         assert!(html.contains("app.mjs"));
         assert!(html.contains("session.mjs") || include_str!("../public/app.mjs").contains("session.mjs"));
         let app = include_str!("../public/app.mjs");
