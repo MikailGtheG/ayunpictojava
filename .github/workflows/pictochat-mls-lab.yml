@@ -1,0 +1,39 @@
+name: PictoChat MLS security lab
+
+on:
+  push:
+    branches:
+      - development/pictochat-modernization
+    paths:
+      - 'mls-lab/**'
+      - '.github/workflows/pictochat-mls-lab.yml'
+  pull_request:
+    paths:
+      - 'mls-lab/**'
+      - '.github/workflows/pictochat-mls-lab.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  mls-lab:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: mls-lab
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: mls-lab
+      - name: Format in ephemeral workspace
+        run: cargo fmt --all
+      - name: Test real OpenMLS membership and encryption
+        run: cargo test --all-targets -- --nocapture
+      - name: Check MLS lab with Clippy
+        run: cargo clippy --all-targets -- -D warnings
