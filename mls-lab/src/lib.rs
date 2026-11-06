@@ -27,7 +27,7 @@ mod tests {
     ) -> ProcessedMessage {
         let bytes = message.tls_serialize_detached().unwrap();
         let incoming = MlsMessageIn::tls_deserialize(&mut bytes.as_slice()).unwrap();
-        let protocol = incoming.into_protocol_message().unwrap();
+        let protocol = incoming.try_into_protocol_message().unwrap();
         group.process_message(provider, protocol).unwrap()
     }
 
