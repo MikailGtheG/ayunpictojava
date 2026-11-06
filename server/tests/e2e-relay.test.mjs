@@ -214,8 +214,11 @@ test("first packet is delivered immediately after subscriber handshake", async (
       const received = await delivery;
       assert.deepEqual(received, frame);
     } finally {
-      sender.close();
-      receiver.close();
+      await Promise.all([sender, receiver].map(socket => new Promise(resolve => {
+        if (socket.readyState === WebSocket.CLOSED) return resolve();
+        socket.addEventListener("close", resolve, { once: true });
+        socket.close();
+      })));
     }
   }
 });
