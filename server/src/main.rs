@@ -1,7 +1,7 @@
 //! Development-only loopback WebSocket relay.
 //! Client-side experimental AES-GCM with bearer room admission. No verified identities,
 //! automatic key distribution, forward secrecy, or TLS yet.
-use std::{net::SocketAddr, sync::Arc, time::{Duration, Instant, SystemTime, UNIX_EPOCH}};
+use std::{net::SocketAddr, sync::{Arc, Mutex}, time::{Duration, Instant, SystemTime, UNIX_EPOCH}};
 use rand::{rngs::OsRng, RngCore};
 use rust_embed::RustEmbed;
 use axum::{body::Body, response::Response};
@@ -21,12 +21,38 @@ use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 const MAX_CONNECTIONS: usize = 128;
 const MAX_MESSAGES_PER_SECOND: u32 = 20;
 const TEMP_ROOM_TTL_SECONDS: u64 = 6 * 3600;
+const MAX_ROOM_CREATIONS_PER_MINUTE: u32 = 32;
 
 #[derive(Clone)]
 struct AppState {
     rooms: Arc<Rooms>,
     slots: Arc<Semaphore>,
     auth: Arc<RoomAuth>,
+    issuance: Arc<Mutex<RoomIssuanceQuota>>,
+}
+
+// Global, bounded, process-local admission throttle. An unauthenticated caller
+// must not be allowed to force unlimited cryptographic token generation.
+// This is not per-IP protection and remains loopback-only.
+struct RoomIssuanceQuota {
+    window_start: Instant,
+    count: u32,
+}
+
+impl RoomIssuanceQuota {
+    fn new() -> Self {
+        Self { window_start: Instant::now(), count: 0 }
+    }
+
+    fn permit(&mut self, now: Instant) -> bool {
+        if now.duration_since(self.window_start) >= Duration::from_secs(60) {
+            self.window_start = now;
+            self.count = 0;
+        }
+        if self.count >= MAX_ROOM_CREATIONS_PER_MINUTE { return false; }
+        self.count += 1;
+        true
+    }
 }
 
 // Fixed one-second quota per session, including clients on the same room.
@@ -69,6 +95,7 @@ async fn main() -> std::io::Result<()> {
         rooms: Arc::new(Rooms::default()),
         slots: Arc::new(Semaphore::new(MAX_CONNECTIONS)),
         auth,
+        issuance: Arc::new(Mutex::new(RoomIssuanceQuota::new())),
     };
     let app = router(state);
     // Bind exclusively to loopback until the protocol is authenticated and E2EE.
@@ -220,6 +247,12 @@ async fn create_temporary_room(
     if !origin_is_allowed(&headers) {
         return Err(StatusCode::FORBIDDEN);
     }
+    {
+        let mut quota = state.issuance.lock().map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
+        if !quota.permit(Instant::now()) {
+            return Err(StatusCode::TOO_MANY_REQUESTS);
+        }
+    }
     let now = unix_seconds();
     let mut bytes = [0u8; 11];
     OsRng.fill_bytes(&mut bytes);
@@ -364,6 +397,35 @@ mod tests {
     }
 
     #[test]
+    fn room_creation_quota_has_bounded_window_and_resets() {
+        let mut quota = RoomIssuanceQuota::new();
+        let start = quota.window_start;
+        for _ in 0..MAX_ROOM_CREATIONS_PER_MINUTE {
+            assert!(quota.permit(start));
+        }
+        assert!(!quota.permit(start), "thirty-third request must be rejected");
+        assert!(!quota.permit(start + Duration::from_secs(59)));
+        assert!(quota.permit(start + Duration::from_secs(60)));
+    }
+
+    #[tokio::test]
+    async fn temporary_room_endpoint_rejects_creation_flood() {
+        let state = AppState {
+            rooms: Arc::new(Rooms::default()),
+            slots: Arc::new(Semaphore::new(MAX_CONNECTIONS)),
+            auth: Arc::new(RoomAuth::from_hex(&"11".repeat(32)).unwrap()),
+            issuance: Arc::new(Mutex::new(RoomIssuanceQuota::new())),
+        };
+        for _ in 0..MAX_ROOM_CREATIONS_PER_MINUTE {
+            assert!(create_temporary_room(State(state.clone()), HeaderMap::new()).await.is_ok());
+        }
+        assert!(matches!(
+            create_temporary_room(State(state), HeaderMap::new()).await,
+            Err(StatusCode::TOO_MANY_REQUESTS)
+        ));
+    }
+
+    #[test]
     fn limits_incoming_frames_per_session() {
         let mut quota = MessageQuota::new();
         let origin = quota.window_start;
@@ -403,6 +465,7 @@ mod tests {
             rooms: Arc::new(Rooms::default()),
             slots: Arc::new(Semaphore::new(MAX_CONNECTIONS)),
             auth: auth.clone(),
+            issuance: Arc::new(Mutex::new(RoomIssuanceQuota::new())),
         };
         // Create a valid temporary room whose six-hour lifetime ends shortly.
         let created = unix_seconds().saturating_sub(TEMP_ROOM_TTL_SECONDS - 3);
@@ -435,6 +498,7 @@ mod tests {
             rooms: Arc::new(Rooms::default()),
             slots: Arc::new(Semaphore::new(MAX_CONNECTIONS)),
             auth,
+            issuance: Arc::new(Mutex::new(RoomIssuanceQuota::new())),
         };
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let address = listener.local_addr().unwrap();
