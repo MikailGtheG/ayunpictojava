@@ -114,6 +114,25 @@ button:disabled{opacity:.5;cursor:default}
 #messages{position:absolute;left:8.203125%;top:0;width:91.40625%;height:98.4375%;margin:0;padding:0;background:transparent;overflow-x:hidden;overflow-y:auto;scrollbar-width:none}
 #messages::-webkit-scrollbar{width:0}
 #messages .entry{border:0;margin:0 0 2px;padding:0;min-height:22px;background:transparent;position:relative}
+/* Original main-fork message sprites (width234, heights22/38/54/70/85).
+   The list grows upward towards the connection icon, like PIXI.scrollContainer. */
+#messages{display:flex;flex-direction:column;justify-content:flex-start}
+#messages::before{content:"";flex-grow:1;flex-shrink:1;min-height:0}
+#messages .entry{position:relative;flex:none;width:100%;height:auto;min-height:0;aspect-ratio:234/22;background:#fff url("/original/images/box_bg1.png") center/100% 100% no-repeat;border:0;box-shadow:none;overflow:hidden;margin:0;padding:0 4px}
+#messages .entry.lines-1{aspect-ratio:234/22;background-image:url("/original/images/box_lines1.png"),url("/original/images/box_bg1.png")}
+#messages .entry.lines-2{aspect-ratio:234/38;background-image:url("/original/images/box_lines2.png"),url("/original/images/box_bg2.png")}
+#messages .entry.lines-3{aspect-ratio:234/54;background-image:url("/original/images/box_lines3.png"),url("/original/images/box_bg3.png")}
+#messages .entry.lines-4{aspect-ratio:234/70;background-image:url("/original/images/box_lines4.png"),url("/original/images/box_bg4.png")}
+#messages .entry.lines-5{aspect-ratio:234/85;background-image:url("/original/images/box_lines5.png"),url("/original/images/box_bg5.png")}
+#messages .entry::after{content:"";position:absolute;inset:0;border:1px solid #8295c0;pointer-events:none}
+#messages .entry:nth-child(5n+2)::after{border-color:#d39793}
+#messages .entry:nth-child(5n+3)::after{border-color:#90af78}
+#messages .entry:nth-child(5n+4)::after{border-color:#bb96be}
+#messages .entry .who{display:block;position:relative;z-index:1;margin:0 0 0 2px;padding:1px 0 0;border:0;background:transparent;color:#405b91;font:clamp(10px,2.7vw,15px)/1 nds,monospace;max-width:100%;white-space:nowrap;overflow:hidden}
+#messages .entry .body{position:relative;z-index:1;margin:0;padding:1px 1px 0;color:#171717;font:clamp(11px,3.2vw,18px)/1.12 nds,monospace;white-space:pre-wrap;overflow-wrap:anywhere}
+#messages .entry img{position:relative;z-index:1;display:block;width:100%;height:auto;max-height:60%;object-fit:contain;object-position:left top;background:transparent;border:0;image-rendering:pixelated;margin:0}
+#messages .entry.lines-1 .body{white-space:nowrap}
+
 #messages .entry .who{margin:0;padding:0 4px;font:11px nds,monospace;background:transparent;border:0;color:#1d3a70}
 #messages .entry .body{font:11px/1.25 nds,monospace;white-space:pre-wrap;padding:1px 3px;max-width:100%}
 #exit-internal{position:absolute;left:95.703125%;top:.5208333333%;width:3.90625%;height:5.2083333333%;margin:0;padding:0;border:0;background:transparent;color:transparent;font-size:0;cursor:pointer;z-index:3}
