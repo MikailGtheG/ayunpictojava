@@ -1,4 +1,4 @@
-# PictoChat 2.0 – TypeScript frontend
+# PictoRust – TypeScript pixel interface
 
 This is a **localhost-only development client**, not a production secure messenger.
 
