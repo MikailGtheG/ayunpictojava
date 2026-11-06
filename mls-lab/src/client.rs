@@ -74,7 +74,7 @@ impl Client {
         ).expect("MLS group creation"));
     }
 
-    pub fn add(&mut self, package: &KeyPackage) -> (Vec<u8>, Vec<u8>, Vec<u8>) {
+    pub fn add(&mut self, package: &KeyPackage) -> (Vec<u8>, Vec<u8>) {
         let group = self.group.as_mut().expect("client needs a group");
         let (commit, welcome, _) = group.add_members(
             &self.provider, &self.signer, std::slice::from_ref(package)
@@ -83,7 +83,6 @@ impl Client {
         (
             wrap(KIND_COMMIT, commit.tls_serialize_detached().expect("serialize commit")).expect("bounded commit"),
             wrap(KIND_WELCOME, welcome.tls_serialize_detached().expect("serialize welcome")).expect("bounded welcome"),
-            group.export_ratchet_tree().tls_serialize_detached().expect("serialize tree"),
         )
     }
 
