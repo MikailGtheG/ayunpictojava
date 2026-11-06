@@ -1,0 +1,12 @@
+[package]
+name = "pictochat-mls-lab"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+# Intentionally isolated from the existing Java and Rust relay.
+# An audited client-side MLS runtime is a separate release gate.
+[dependencies]
+openmls = "=0.9.2"
+openmls_basic_credential = "=0.6.0"
+openmls_rust_crypto = "=0.6.0"
