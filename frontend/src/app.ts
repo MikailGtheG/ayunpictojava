@@ -220,6 +220,7 @@ function render(data,who){
  div.className="entry lines-"+visualLines;
  div.style.setProperty("--frame-color","#05058a");
  div.style.setProperty("--line-color","#b9b9e4");
+ const lines=document.createElement("span");lines.className="rule-lines";lines.setAttribute("aria-hidden","true");div.append(lines);
  const name=document.createElement("div");name.className="who";name.textContent=sanitizeNickname(data.nickname);name.title=who;
  div.append(name);
  if(data.text){const p=document.createElement("div");p.className="body";p.textContent=data.text;div.append(p);}
