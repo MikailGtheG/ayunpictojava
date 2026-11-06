@@ -132,7 +132,12 @@ async function main() {
 
     // Leave erases local chat messages and secrets in the active client.
     await alice.getByRole("button", { name: "Trennen" }).click();
-    await alice.getByRole("status").getByText("Sitzung beendet", { exact: false }).waitFor();
+    await alice.waitForFunction(() =>
+      document.querySelectorAll("#messages .entry").length === 0 &&
+      document.getElementById("token").value === ""
+    );
+    const rotatedIdentity = await waitForIdentity(alice);
+    assert.notEqual(rotatedIdentity, aliceFingerprint, "new session must rotate ephemeral identity");
     assert.equal(await alice.locator("#messages .entry").count(), 0);
     assert.equal(await alice.locator("#token").inputValue(), "");
     console.log("Visual browser acceptance passed: two peers, Unicode, sketches, reply, mobile and local clearing.");
