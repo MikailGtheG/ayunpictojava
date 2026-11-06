@@ -12,4 +12,5 @@ declare module "*.mjs" {
   export const randomRoomId: any;
   export const sanitizeNickname: any;
   export const validateDraft: any;
+  export const preparePictoRustPrint: any;
 }
