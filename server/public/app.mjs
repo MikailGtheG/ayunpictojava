@@ -15,11 +15,11 @@ const securityPanel=document.getElementById("security-panel");
 const board=document.getElementById("writing-board");
 let lastReceivedData=null;
 let selectedRoomLetter="A";
-for(const button of document.querySelectorAll("[data-room-letter]")){
+for(const button of Array.from(document.querySelectorAll("[data-room-letter]"))){
  button.addEventListener("click",()=>{
   selectedRoomLetter=button.getAttribute("data-room-letter")||"A";
   document.getElementById("room-letter").textContent="Chat Room "+selectedRoomLetter;
-  for(const item of document.querySelectorAll("[data-room-letter]"))item.setAttribute("aria-pressed",String(item===button));
+  for(const item of Array.from(document.querySelectorAll("[data-room-letter]")))item.setAttribute("aria-pressed",String(item===button));
  });
 }
 function setTool(which){
@@ -39,7 +39,7 @@ document.getElementById("scroll-up").addEventListener("click",()=>messages.scrol
 document.getElementById("scroll-down").addEventListener("click",()=>messages.scrollBy({top:96,behavior:"smooth"}));
 document.getElementById("copy-last").addEventListener("click",()=>{
  if(!lastReceivedData)return;
- document.getElementById("text").value=lastReceivedData.text||"";
+ $("text").value=lastReceivedData.text||"";
  strokes=lastReceivedData.strokes.map(x=>x.map(p=>[...p]));
  totalPoints=strokes.reduce((n,x)=>n+x.length,0);
  current=null;redraw();
@@ -86,7 +86,7 @@ document.querySelectorAll("#touch-keys [data-char]").forEach(button=>{
   const start=field.selectionStart,end=field.selectionEnd;
   if(ch==="BACKSPACE"){
    if(start===end && start>0){
-    const prev=Array.from(field.value.slice(0,start)).pop()||"";
+    const prev=Array.from(String(field.value).slice(0,start)).pop()||"";
     field.value=field.value.slice(0,start-prev.length)+field.value.slice(end);
     field.focus();field.setSelectionRange(start-prev.length,start-prev.length);
    }else{field.value=field.value.slice(0,start)+field.value.slice(end);field.focus();field.setSelectionRange(start,start);}
@@ -119,7 +119,7 @@ $("generate-key").addEventListener("click",()=>{
 $("show-key").addEventListener("click",()=>{
  const field=$("e2ee-key");field.type=field.type==="password"?"text":"password";
 });
-const enabled=on=>{$("send").disabled=!on;$("disconnect").disabled=!on;$("connect").disabled=on||!sessionIdentity;room.disabled=on;token.disabled=on;$("new-identity").disabled=on;$("new-room").disabled=on;$("trusted-fingerprints").disabled=on;lobby.hidden=on;if(on)securityPanel.open=false;else securityPanel.open=true;};
+const enabled=on=>{$("send").disabled=!on;$("disconnect").disabled=!on;$("connect").disabled=on||!sessionIdentity;room.disabled=on;token.disabled=on;$("new-identity").disabled=on;$("new-room").disabled=on;$("trusted-fingerprints").disabled=on;lobby.hidden=on;if(on)securityPanel.removeAttribute("open");else securityPanel.setAttribute("open","");};
 function xy(e){
  const b=canvas.getBoundingClientRect();
  return [Math.max(0,Math.min(512,Math.round((e.clientX-b.left)*512/b.width))),
