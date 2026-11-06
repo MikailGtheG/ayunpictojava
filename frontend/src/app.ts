@@ -10,10 +10,28 @@ const MAX_BYTES=16384,MAX_POINTS=1200;
 let totalPoints=0;
 const setStatus=t=>status.textContent=t;
 room.value=randomRoomId();
-$("new-room").addEventListener("click",()=>{
+$("new-room").addEventListener("click",async()=>{
  if(socket)return;
- room.value=randomRoomId();messages.replaceChildren();
- setStatus("Neuer temporärer Raum erzeugt. Raum-ID und Zugangstoken getrennt teilen.");
+ $("new-room").disabled=true;
+ try{
+  const response=await fetch("/new-room",{method:"POST",cache:"no-store"});
+  if(!response.ok)throw new Error("room issue failed");
+  const invitation=await response.json();
+  if(!/^[0-9a-f]{32}$/.test(invitation.roomId)||!/^[0-9a-f]{64}$/.test(invitation.token))throw new Error("invalid invitation");
+  room.value=invitation.roomId;token.value=invitation.token;
+  messages.replaceChildren();
+  setStatus("Temporärer Raum erstellt (6 Stunden gültig). Einladung nur über einen sicheren Kanal teilen.");
+ }catch{setStatus("Raumerstellung fehlgeschlagen. Läuft der lokale Rust-Server?");}
+ finally{$("new-room").disabled=false;}
+});
+$("copy-invite").addEventListener("click",async()=>{
+ if(!/^[0-9a-f]{32}$/.test(room.value)||!/^[0-9a-f]{64}$/.test(token.value)){
+  setStatus("Zuerst Raum und Zugangstoken erstellen");return;
+ }
+ try{
+  await navigator.clipboard.writeText(room.value+" "+token.value);
+  setStatus("Einladung kopiert: Raum-ID und Zugangstoken sicher teilen, niemals öffentlich posten.");
+ }catch{setStatus("Einladung konnte nicht kopiert werden");}
 });
 $("nickname").value="Gast";
 $("copy-room").addEventListener("click",async()=>{
