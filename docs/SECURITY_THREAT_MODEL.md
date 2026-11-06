@@ -1,40 +1,38 @@
 # PictoChat 2.0 – Sicherheitsmodell und Freigabesperren
 
-**Stand:** Experimenteller lokaler Rust-Relay mit gemeinsamem, manuell ausgetauschtem 256-Bit-AES-GCM-Schlüssel. **Nicht produktionsreif.**
+**Stand 6. November 2026:** experimenteller lokaler Rust-Relay mit temporären Raumtickets, clientseitiger AES-256-GCM-V2-Verschlüsselung und flüchtigen P-256-Absendersignaturen. Separater getesteter OpenMLS-V3-Clientkern, **nicht** in den Browser integriert. **Nicht produktionsreif.**
 
-## Sicherheitsgrenzen
+## Produktprinzip: ausschließlich flüchtige Identitäten
 
-| Bedrohung | Aktuelle Maßnahme | Nicht gelöst |
+Kein permanentes Benutzerkonto, keine Geräte-ID über Sitzungen hinweg, keine zentrale Benutzer- oder Chatdatenbank. Jede Browsersitzung erzeugt eigene temporäre Schlüssel. Eine erneute Sitzung ist bewusst ein neuer Teilnehmer und muss im Chatraum neu zugelassen werden. Wiedererkennung über Tage ist weder vorgesehen noch möglich. Verlässliche Authentifizierung **innerhalb** einer Sitzung und die Mitgliedschaft im aktuellen MLS-Gruppenepoch bleiben dennoch notwendig.
+
+## Grenzen und Gefährdungen
+
+| Risiko | Gegenwärtige Maßnahme | Verbleibendes Risiko |
 | --- | --- | --- |
-| Unbefugter Raumbeitritt | HMAC-SHA256-Bearertoken pro Raum; Token nicht im URL-Pfad | Tokenkopie ermöglicht Zutritt; keine Teilnehmeridentität oder individuelle Sperre |
-| Server liest Chatinhalte | Browser ver-/entschlüsselt Text und Skizzen lokal via Web Crypto AES-256-GCM | Ein manipuliert ausgelieferter Client kann den Schlüssel abgreifen; der Server kontrolliert derzeit den ausgelieferten JS-Code |
-| Man-in-the-Middle | Bind ausschließlich an localhost | Kein TLS und keine überprüfbare Code-Integrität bei Fremdhosting; keine sichere Freigabe über das Netz |
-| Inhalte aus anderen Räumen | Raum-ID ist in AES-GCM-AAD eingebunden | Kein automatischer Schlüsselaustausch oder Gruppenmitgliedschaftsprotokoll |
-| Replay | Browser prüft zuletzt gesehene AES-GCM-IVs in begrenztem RAM | Kein Replay-Schutz nach Neustart oder außerhalb des Speicherfensters |
-| Manipulierte Nachrichten | AES-GCM-Authentifizierung im Browser | Kenntnis des gemeinsamen Gruppenschlüssels ermöglicht gültige Nachrichten und Imitation |
-| Ressourcenmissbrauch | 16 Plätze pro Raum, 128 Verbindungen, 256 Räume, 20 Pakete/s pro Sitzung, 16 KiB je Frame | IP-basierte Fairness und ausgefeiltes Abuse-Management fehlen |
-| Datenpersistenz | Keine Chatdatenbank; begrenztes RAM-Relay, Browser nutzt keinen Chat-LocalStorage | RAM, Swap, Coredumps, Reverse-Proxies, Browser-Cache, Screenshots, vom Nutzer gespeicherte PDFs |
-| Drittanbieter | Browser lädt Skripte vom selben Ursprung; restriktive CSP | Browser-Extensions und kompromittierte Endgeräte sind außerhalb des Kontrollbereichs |
+| Unbefugter Raumbeitritt | HMAC-SHA256-Bearertoken je 32-hex-Raum-ID; stateless POST /new-room stellt sechs Stunden gültige Einladungen aus | Jeder Tokeninhaber kann innerhalb der Gültigkeit beitreten, auch nachdem ein Raum leer war; klassische CLI-Raumtickets verfallen bisher nur bei Root-Key-Rotation |
+| Server liest Nachrichten | Browser verschlüsselt Text/Skizzen mit AES-256-GCM, signiert mit kurzlebigem P-256-Schlüssel | Ausgelieferter JavaScript-Code wird vom Server kontrolliert; manipulierte Builds/Extensions/Endgeräte kompromittieren die Geheimhaltung |
+| Absenderimitation | Fingerprint-Pinning nach unabhängiger Prüfung, ECDSA-Signatur über raumgebundenen Inhalt | Keine geprüfte Verzeichnis- oder MLS-Mitgliedschaftsverwaltung im tatsächlichen Browser |
+| Kryptografische Mitgliedschaft | OpenMLS 0.9.2: Add, Welcome, Commit, Epoch, Remove und Weiterkommunikation in eigenständigen Rust-Tests | Browser nutzt weiterhin V2, nicht MLS V3; Schlüssel fehlen im echten UI-Gruppenprotokoll |
+| Man-in-the-Middle | Nur localhost-Bind, Origin-Prüfung | Kein TLS/öffentliches Hosting; fremde Origins sind keine vollständige Authentifizierung |
+| Replay | 2048-IV-Fenster pro Browser-Verbindung, MLS-Client blockiert nach markiertem Transportverlust | Kein sicherer Reconnect im Browser; Angriffe bei State-Verlust außerhalb des Fensters möglich |
+| Datenpersistenz | Kein serverseitiger Chatverlauf; bounded RAM-Broadcast; Browser ohne localStorage/IndexedDB | RAM, Swap, Crashdumps, Browser-Caches, Kopien, Druck/PDF, Screenshots können Inhalte halten |
+| Ressourcen | 256 Räume, 16 Verbindungen/Raum, 128 insgesamt, 20 Frames/s, 16 KiB/Frame | Keine IP-Fairness, kein vollständiges Abuse-/DDoS-Konzept |
+| Vorzeitige Bereitstellung | CI für Relay, Legacy, Browser, TypeScript und OpenMLS | Kein unabhängiger Security-Audit oder vollständig geprüfter Produktionsbuild |
 
-## Kryptografisches Zwischenprotokoll (v1)
+## Aktuelle Protokolle
 
-- **Schlüsselerzeugung:** CSPRNG; manuell zwischen Mitgliedern über einen **anderen, sicheren Kanal** teilen.
-- **Nachrichtenhülle:** Version 0x01 | 12 zufällige IV-Bytes | AES-GCM-Chiffrat inkl. 16-Byte-Tag.
-- **Zusatzdaten:** UTF-8-Kodierung von `pictochat-psk-v1:` + 32-stelliger Raum-ID.
-- **Server:** Nur Größen- und Versionskontrolle. Das ist ausdrücklich **keine** kryptografische Validierung.
-- **Endgeräte:** Authentifizierung durch GCM-Tag, anschließend JSON- und Zeichnungsvalidierung.
-- **Wiederholungen:** Im Client flüchtiges IV-LRU mit bis zu 2048 Einträgen; kein dauerhafter Schutz.
-- **Schwäche:** PSK kann nicht einzelne Mitglieder ausschließen, keine Forward Secrecy, kein Schutz gegen Gruppenmitglieder, kein überprüfbares Schlüssel- oder Identitätsmanagement.
+**Browser V2:** `0x02 | 12-Byte-GCM-IV | Chiffrat inkl. 128-Bit-GCM-Tag`; AAD ist `pictochat-signed-v2:` plus Raum-ID. In der verschlüsselten JSON-Nachricht liegen Sitzungspublickey, ECDSA-Signatur und Chat-/Zeichnungsdaten. Der Client prüft Fingerprint und Signatur vor Darstellung. Manueller separater 256-Bit-Gruppenschlüssel: **keine Forward Secrecy**.
 
-## Freigabesperren
+**OpenMLS V3:** `0x03 | Nachrichtentyp | MLS-TLS-Serialisierung` mit Application, Commit, Welcome, KeyPackage. Der Rust-Relay routet nur Framing und kann weder MLS-Identitäten verifizieren noch Inhalte entschlüsseln. Ein isolierter nativer OpenMLS-Client und reale WebSocket-Tests belegen die Gruppen-Kryptografie, **noch keine Endnutzer-Browserintegration**.
 
-1. Getrennte, überprüfbare Geräte- und Teilnehmeridentitäten; sichere Einladung und Revokation.
-2. Gruppenprotokoll mit Mitgliedschaftsepochen, Forward Secrecy und erneuter Schlüsselbildung nach Änderung der Mitglieder; MLS prüfen statt selbst kryptografische Ratchets zu erfinden.
-3. Sichere Verteilung des Frontends und überprüfbare Schlüssel/Code-Integrität; TLS auf allen entfernten Verbindungen.
-4. Replay- und Nachrichtenreihenfolge-Konzept mit unabhängigen Teilnehmern und reconnect-toleranter Zustandsverwaltung.
-5. Explizites Verhalten bei Offline-Clients (keine Nachrichtenaufbewahrung bedeutet keinen garantierten Nachversand).
-6. Bedrohungsmodell verifizieren, Penetrationstest und externe Codeprüfung durchführen.
-7. CI: Rust/Clippy, Browser-Web-Crypto-Tests und *echter* WebSocket-Integrationstest mit zwei Clients inklusive Zeichnungen, Unicode, manipulierten Paketen und falschem Raumtoken.
-8. UI-Tests auf Desktop und Touch-Geräten; Barrierefreiheit und korrekter PDF-Export einschließlich Unicode und Zeichnungen.
+## Produktionsfreigabe – harte Sperren
 
-**Wichtig:** Ein erfolgreicher CI-Lauf belegt nur die definierten Tests. Er ist kein Sicherheitszertifikat für private Kommunikation.
+1. **MLS im Client:** eigenständige endpointseitige WASM-/native MLS-Komponente, keine Gruppenschlüssel im Server, saubere Authentisierung flüchtiger Mitgliedschaften und validierte Welcome/Commit/KeyPackage-Abläufe.
+2. **Unterbrechungen:** Nach unbekannter Commit-Lücke darf der Client nicht automatisch weiter senden; sicherer erneuter Beitritt ohne dauerhaft gespeicherte Chatnachrichten.
+3. **Lieferung & Integrität:** reproduzierbarer Frontend-Build, sichere Abhängigkeiten und TLS bei jedem Nicht-Loopback-Betrieb; keine ungeprüften Inline-Skripte.
+4. **Datenschutz:** definierte Löschung von RAM-Referenzen, keine Chatdatenbanken/Telemetrie, ausdrücklich optionaler benutzerinitiierter PDF-Export.
+5. **Qualität:** Performance-/Last- und Browser-/Touch-Tests, vollständige Tastatur- und Unicode-Abnahme, reproduzierbare Dependency-Locks und Sicherheitsprüfungen.
+6. **Externe Prüfung:** unabhängiger Code- und Threat-Model-Review vor Freigabe; PR bleibt bis dahin Draft und `master` unangetastet.
+
+Grüne CI-Läufe zeigen nur, dass die getesteten Szenarien funktionieren. Sie sind **kein Nachweis allgemeiner E2EE-Sicherheit**.
