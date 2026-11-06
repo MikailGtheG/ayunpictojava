@@ -120,6 +120,7 @@ fn router(state: AppState) -> Router {
         .route("/crypto.mjs", get(crypto_module))
         .route("/app.mjs", get(app_module))
         .route("/session.mjs", get(session_module))
+        .route("/pictorust-export.mjs", get(pictorust_export_module))
         .route("/identity.mjs", get(identity_module))
         .route("/new-room", post(create_temporary_room))
         .route("/ws/{room_id}", get(connect))
@@ -133,6 +134,16 @@ async fn app_module() -> ([(axum::http::header::HeaderName, &'static str); 2], &
             (axum::http::header::CACHE_CONTROL, "no-store"),
         ],
         include_str!("../public/app.mjs"),
+    )
+}
+
+async fn pictorust_export_module() -> ([(axum::http::header::HeaderName, &'static str); 2], &'static str) {
+    (
+        [
+            (axum::http::header::CONTENT_TYPE, "text/javascript; charset=utf-8"),
+            (axum::http::header::CACHE_CONTROL, "no-store"),
+        ],
+        include_str!("../public/pictorust-export.mjs"),
     )
 }
 
