@@ -365,8 +365,8 @@ mod tests {
 
     #[test]
     fn limits_incoming_frames_per_session() {
-        let origin = Instant::now();
         let mut quota = MessageQuota::new();
+        let origin = quota.window_start;
         for _ in 0..MAX_MESSAGES_PER_SECOND {
             assert!(quota.permit(origin));
         }
