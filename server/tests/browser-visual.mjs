@@ -339,6 +339,32 @@ async function main() {
       return (await renderPictoRustPages(entries,"A")).length;
     });
     assert.equal(longPageCount,2,"23 short messages need two A4 sheets, never 6 DS screens");
+    // Exercise ACTUAL print pagination (previously tested only in-memory).
+    // Capture each raster page for human review as well as the complete PDF.
+    await alice.evaluate(async () => {
+      const {preparePictoRustPrint} = await import("./pictorust-export.mjs");
+      const many = Array.from({length:23}, (_,i) => ({
+        nickname: i%2 ? "Çağrı" : "Äysu",
+        text: "Message "+i+" – ÄÖÜ ğışç",
+        strokes: []
+      }));
+      await preparePictoRustPrint(many, "A", document.getElementById("pixel-print"));
+    });
+    assert.equal(await alice.locator("#pixel-print .pixel-page").count(),2,
+      "two real print images required");
+    for(let i=0;i<2;i++) {
+      const url = await alice.locator("#pixel-print .pixel-page").nth(i).getAttribute("src");
+      assert.ok(url?.startsWith("data:image/png;base64,"));
+      await writeFile(`${screenshots}/pictorust-long-page-${i+1}.png`,
+        Buffer.from(url.split(",")[1], "base64"));
+    }
+    await alice.emulateMedia({media:"print"});
+    await alice.pdf({
+      path:`${screenshots}/pictorust-long-two-page.pdf`,
+      printBackground:true,preferCSSPageSize:true,displayHeaderFooter:false,scale:1
+    });
+    await alice.emulateMedia({media:"screen"});
+
     // The technical settings panel is still open from the first button test.
     // Refresh the live page, then close the panel once before mobile checks.
     await alice.locator("#pdf").click();
