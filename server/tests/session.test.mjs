@@ -33,7 +33,7 @@ test("DS-style UI provides temporary room controls, undo and clearing on leave",
  const app=readFileSync(new URL("../public/app.mjs",import.meta.url),"utf8");
  assert.match(html,/id="picto"/);
  assert.match(html,/\/original\/images\/background\.png/);
- assert.match(html,/\/original\/images\/bottom_screen\.png/);
+ assert.match(html,/\/original\/images\/drawui\.png/);
  assert.match(html,/\/original\/images\/room_a\.png/);
  assert.match(html,/\/original\/nds\.ttf/);
  assert.match(html,/id="lobby"/);
