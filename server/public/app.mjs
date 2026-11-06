@@ -78,7 +78,10 @@ $("copy-room").addEventListener("click",async()=>{
   setStatus("Temporäre Raum-ID kopiert. Für Zugang weiterhin separates Token erforderlich.");
  }catch{setStatus("Zwischenablage nicht verfügbar; Raum-ID bitte manuell kopieren.");}
 });
-document.querySelectorAll("#touch-keys [data-char]").forEach(button=>{
+document.getElementById("keyboard-mode").addEventListener("click",()=>{
+ document.getElementById("international-keys").classList.toggle("visible");
+});
+document.querySelectorAll("#touch-keys [data-char], #international-keys [data-char]").forEach(button=>{
  button.addEventListener("click",()=>{
   const field=$("text");
   const ch=button.getAttribute("data-char");
