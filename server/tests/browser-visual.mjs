@@ -304,10 +304,12 @@ async function main() {
       }));
       await preparePictoRustPrint(demo,"A",document.getElementById("pixel-print"));
     });
+    await alice.emulateMedia({media:"print"});
     await alice.pdf({
       path:`${screenshots}/pictorust-multipage-demo.pdf`,
       printBackground:true,preferCSSPageSize:true,displayHeaderFooter:false,scale:1
     });
+    await alice.emulateMedia({media:"screen"});
     // The technical settings panel is still open from the first button test.
     // Refresh the live page, then close the panel once before mobile checks.
     await alice.locator("#pdf").click();
