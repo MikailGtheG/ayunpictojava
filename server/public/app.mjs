@@ -8,6 +8,7 @@ const canvas=$("drawing"),ctx=canvas.getContext("2d"),encoder=new TextEncoder(),
 let socket=null,strokes=[],current=null,roomKey=null,replayGuard=null,sessionIdentity=null,trustedPeers=null;
 const MAX_BYTES=16384,MAX_POINTS=1200;
 let totalPoints=0;
+let selectedPenWidth=2.5;
 const setStatus=t=>status.textContent=t;
 const stage=document.getElementById("picto");
 const lobby=document.getElementById("lobby");
@@ -18,7 +19,8 @@ let selectedRoomLetter="A";
 for(const button of Array.from(document.querySelectorAll("[data-room-letter]"))){
  button.addEventListener("click",()=>{
   selectedRoomLetter=button.getAttribute("data-room-letter")||"A";
-  document.getElementById("room-letter").textContent="Chat Room "+selectedRoomLetter;
+  document.getElementById("room-letter").src="/original/images/letter_room_"+selectedRoomLetter.toLowerCase()+".png";
+  document.getElementById("room-letter").alt="Chat Room "+selectedRoomLetter;
   for(const item of Array.from(document.querySelectorAll("[data-room-letter]")))item.setAttribute("aria-pressed",String(item===button));
  });
 }
@@ -46,6 +48,7 @@ document.getElementById("copy-last").addEventListener("click",()=>{
 });
 document.getElementById("clear-chat").addEventListener("click",()=>messages.replaceChildren());
 document.getElementById("leave-room").addEventListener("click",()=>socket?.close());
+document.getElementById("exit-internal").addEventListener("click",()=>socket?.close());
 
 room.value=randomRoomId();
 $("new-room").addEventListener("click",async()=>{
@@ -120,10 +123,10 @@ document.getElementById("keyboard-mode").addEventListener("click",()=>{
  document.getElementById("touch-keys").style.visibility=internationalMode.classList.contains("visible")?"hidden":"visible";
 });
 document.getElementById("big-pen-tool").addEventListener("click",()=>{
- ctx.lineWidth=5;
+ selectedPenWidth=5;redraw();
 });
 document.getElementById("small-pen-tool").addEventListener("click",()=>{
- ctx.lineWidth=1;
+ selectedPenWidth=1;redraw();
 });
 document.getElementById("undo-outside").addEventListener("click",()=>document.getElementById("undo").click());
 document.querySelectorAll("#touch-keys [data-char], #international-keys [data-char]").forEach(button=>{
@@ -188,7 +191,7 @@ function line(points,context){
  context.stroke();
 }
 function redraw(){
- ctx.clearRect(0,0,512,170);ctx.lineWidth=2.5;ctx.strokeStyle="#111";ctx.lineJoin="round";ctx.lineCap="round";
+ ctx.clearRect(0,0,512,170);ctx.lineWidth=selectedPenWidth;ctx.strokeStyle="#111";ctx.lineJoin="round";ctx.lineCap="round";
  for(const stroke of strokes)line(stroke,ctx);
 }
 canvas.addEventListener("pointerdown",e=>{if(totalPoints>=MAX_POINTS)return;current=[xy(e)];strokes.push(current);totalPoints++;canvas.setPointerCapture(e.pointerId);redraw();});
