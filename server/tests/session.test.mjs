@@ -36,6 +36,11 @@ test("DS-style UI provides temporary room controls, undo and clearing on leave",
  assert.match(html,/id="new-room"/);
  assert.match(html,/id="nickname"/);
  assert.match(html,/id="undo"/);
+ assert.match(html,/id="copy-room"/);
+ assert.match(html,/id="touch-keys"/);
+ for(const ch of ["ä","ö","ü","ß","ç","ğ","ı","İ","ş"]) assert.ok(html.includes(`data-char="${ch}"`));
+ assert.match(app,/navigator\.clipboard\.writeText\(/);
+ assert.match(app,/field\.setSelectionRange\(/);
  assert.match(app,/room\.value=randomRoomId\(\)/);
  assert.match(app,/messages\.replaceChildren\(\)/);
  assert.doesNotMatch(html,/localStorage|sessionStorage|indexedDB/);
