@@ -4,7 +4,7 @@
 
 The modern client is in `frontend/`, the volatile Rust relay is in `server/`, and the independent OpenMLS security laboratory is in `mls-lab/`. The graphical interface reuses the original fork's PictoChat sprites and pixel font.
 
-**Pixel-perfect PDF export** renders each original 256×192 chat top screen as an image and prints one image per PDF page. No headers, footers, explanatory notes, access tokens or document-style text cards are part of the export. The local browser holds the history only for the active session.
+**PictoRust PDF export:** renders a continuous original-width Nintendo DS sprite chat strip, without resetting the conversation at each 192-pixel screen. Each 256×520 logical raster is nearest-neighbor scaled to 512×1040 CSS pixels and centered on an A4 portrait page. Message frames stay intact across page boundaries. Original nds.ttf font and sprite backgrounds are used; no headers, footers, explanatory notes, access tokens or document-style cards. Browser export is client-only. The local browser holds the history only for the active session.
 
 This development branch is not ready for a public deployment: OpenMLS is not yet integrated into the shipping browser. The original Java implementation remains below for historical compatibility.
 
