@@ -328,12 +328,16 @@ fn room_capability_valid(headers: &HeaderMap, room: &str, auth: &RoomAuth) -> bo
 // Browsers always send Origin on WebSocket handshakes; CLI clients may omit it.
 // This is CSWSH protection, NOT authentication or authorization.
 fn origin_is_allowed(headers: &HeaderMap) -> bool {
-    match headers.get(ORIGIN) {
-        None => true,
-        Some(origin) => matches!(
+    // Duplicate Origin fields must not be accepted, even if the first is valid.
+    // A single missing Origin is retained only for local CLI integration tests.
+    let mut origins = headers.get_all(ORIGIN).iter();
+    match (origins.next(), origins.next()) {
+        (None, None) => true,
+        (Some(origin), None) => matches!(
             origin.to_str(),
             Ok("http://127.0.0.1:8787" | "http://localhost:8787")
         ),
+        _ => false,
     }
 }
 
@@ -343,6 +347,32 @@ mod tests {
     use axum::http::HeaderValue;
 
 
+
+    #[test]
+    fn rejects_duplicate_or_foreign_websocket_origins() {
+        let mut headers = HeaderMap::new();
+        assert!(origin_is_allowed(&headers), "local CLI clients may omit Origin");
+        headers.insert(ORIGIN, HeaderValue::from_static("http://127.0.0.1:8787"));
+        assert!(origin_is_allowed(&headers));
+        headers.append(ORIGIN, HeaderValue::from_static("https://evil.example"));
+        assert!(!origin_is_allowed(&headers), "duplicate Origin must be rejected");
+        headers.remove(ORIGIN);
+        headers.insert(ORIGIN, HeaderValue::from_static("https://evil.example"));
+        assert!(!origin_is_allowed(&headers));
+        headers.insert(ORIGIN, HeaderValue::from_static("http://localhost:8787"));
+        assert!(origin_is_allowed(&headers));
+    }
+
+    #[test]
+    fn limits_incoming_frames_per_session() {
+        let origin = Instant::now();
+        let mut quota = MessageQuota::new();
+        for _ in 0..MAX_MESSAGES_PER_SECOND {
+            assert!(quota.permit(origin));
+        }
+        assert!(!quota.permit(origin), "burst must not exceed 20 frames per second");
+        assert!(quota.permit(origin + Duration::from_secs(1)));
+    }
 
     #[test]
     fn local_dev_page_contains_no_external_resources_and_has_pdf_action() {
