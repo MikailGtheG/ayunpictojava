@@ -73,7 +73,9 @@ async function main() {
     const firstMessage = "Merhaba! Ä Ö Ü ß – ğ ı İ ş ç 😊";
     await alice.locator("#text").fill(firstMessage);
     // Verify on-screen Turkish key insertion is functional, not just decorative.
-    await alice.locator('#touch-keys button[data-char="ğ"]').click();
+    await alice.locator("#keyboard-mode").click();
+    await alice.locator('#international-keys button[data-char="ğ"]').click();
+    await alice.locator("#keyboard-mode").click();
     assert.match(await alice.locator("#text").inputValue(), /ğ$/);
 
     const canvas = alice.locator("#drawing");
