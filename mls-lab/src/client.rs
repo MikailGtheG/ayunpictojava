@@ -12,6 +12,8 @@ pub const KIND_COMMIT: u8 = 2;
 pub const KIND_WELCOME: u8 = 3;
 pub const KIND_KEY_PACKAGE: u8 = 4;
 pub const MAX_WIRE_SIZE: usize = 16 * 1024;
+// Leave ample room for MLS framing, authentication metadata and tree overhead.
+pub const MAX_APPLICATION_PLAINTEXT_BYTES: usize = 8 * 1024;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Incoming {
@@ -131,7 +133,7 @@ impl Client {
     }
 
     pub fn send(&mut self, message: &[u8]) -> ClientResult<Vec<u8>> {
-        if message.is_empty() || message.len() > MAX_WIRE_SIZE {
+        if message.is_empty() || message.len() > MAX_APPLICATION_PLAINTEXT_BYTES {
             return Err("message empty or oversized");
         }
         if !self.synchronized { return Err("group epoch may be stale; rejoin required"); }
