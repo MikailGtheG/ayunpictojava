@@ -541,6 +541,7 @@ mod tests {
             rooms: Arc::new(Rooms::default()),
             slots: Arc::new(Semaphore::new(MAX_CONNECTIONS)),
             auth: auth.clone(),
+            issuance: Arc::new(Mutex::new(RoomIssuanceQuota::new())),
         };
         let (_, json) = create_temporary_room(State(state), HeaderMap::new()).await.unwrap();
         let value: serde_json::Value = serde_json::from_str(&json).unwrap();
