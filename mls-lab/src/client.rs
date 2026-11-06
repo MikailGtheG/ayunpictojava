@@ -54,6 +54,8 @@ pub struct Client {
     signer: SignatureKeyPair,
     credential: CredentialWithKey,
     group: Option<MlsGroup>,
+    // A disconnected client may have missed MLS commits; fail closed.
+    synchronized: bool,
 }
 
 impl Client {
@@ -70,7 +72,7 @@ impl Client {
             credential: BasicCredential::new(label.to_vec()).into(),
             signature_key: signer.public().into(),
         };
-        Ok(Self { provider, signer, credential, group: None })
+        Ok(Self { provider, signer, credential, group: None, synchronized: false })
     }
 
     pub fn key_package(&self) -> ClientResult<KeyPackage> {
@@ -87,10 +89,12 @@ impl Client {
             &MlsGroupCreateConfig::default(), self.credential.clone()
         ).map_err(|_| "cannot create MLS group")?;
         self.group = Some(group);
+        self.synchronized = true;
         Ok(())
     }
 
     pub fn add(&mut self, package: &KeyPackage) -> ClientResult<(Vec<u8>, Vec<u8>)> {
+        if !self.synchronized { return Err("group epoch may be stale; rejoin required"); }
         let group = self.group.as_mut().ok_or("client needs a group")?;
         if !group.is_active() { return Err("client has been removed"); }
         let (commit, welcome, _) = group.add_members(
@@ -122,6 +126,7 @@ impl Client {
         ).map_err(|_| "cannot authenticate MLS Welcome")?;
         self.group = Some(staged.into_group(&self.provider)
             .map_err(|_| "cannot join MLS group")?);
+        self.synchronized = true;
         Ok(())
     }
 
@@ -129,6 +134,7 @@ impl Client {
         if message.is_empty() || message.len() > MAX_WIRE_SIZE {
             return Err("message empty or oversized");
         }
+        if !self.synchronized { return Err("group epoch may be stale; rejoin required"); }
         let group = self.group.as_mut().ok_or("client needs group")?;
         if !group.is_active() { return Err("client has been removed"); }
         let encrypted = group.create_message(&self.provider, &self.signer, message)
@@ -145,6 +151,7 @@ impl Client {
         }
         let protocol = unwrap(wire, kind)?
             .try_into_protocol_message().map_err(|_| "not a protocol message")?;
+        if !self.synchronized { return Err("group epoch may be stale; rejoin required"); }
         let group = self.group.as_mut().ok_or("no joined MLS group")?;
         if !group.is_active() { return Err("client has been removed"); }
         let processed = group.process_message(&self.provider, protocol)
@@ -163,6 +170,7 @@ impl Client {
     }
 
     pub fn remove(&mut self, leaf: LeafNodeIndex) -> ClientResult<Vec<u8>> {
+        if !self.synchronized { return Err("group epoch may be stale; rejoin required"); }
         let group = self.group.as_mut().ok_or("group needed")?;
         if !group.is_active() { return Err("client has been removed"); }
         let (commit, _, _) = group.remove_members(&self.provider, &self.signer, &[leaf])
@@ -174,6 +182,24 @@ impl Client {
         group.merge_pending_commit(&self.provider)
             .map_err(|_| "cannot merge MLS removal")?;
         Ok(wire)
+    }
+
+    /// Call as soon as transport drops or messages may have been missed.
+    /// No server-held timestamps or unauthenticated epoch claim can clear this state.
+    pub fn mark_transport_interrupted(&mut self) {
+        self.synchronized = false;
+    }
+
+    /// Explicitly abandon old MLS state before an authenticated new Welcome.
+    /// Callers MUST verify the inviter's credential out of band.
+    /// This is not a secure automatic recovery handshake.
+    pub fn abandon_group_for_rejoin(&mut self) {
+        self.group = None;
+        self.synchronized = false;
+    }
+
+    pub fn synchronized(&self) -> bool {
+        self.synchronized && self.group.as_ref().is_some_and(MlsGroup::is_active)
     }
 
     pub fn own_leaf(&self) -> ClientResult<LeafNodeIndex> {
