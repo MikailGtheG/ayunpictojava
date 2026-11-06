@@ -78,7 +78,7 @@ jobs:
             exit 1
           fi
           pdfimages -list screenshots/pictochat-print-demo.pdf > screenshots/pdf-images.txt
-          grep -Eq '^ *1 +0 +image +[0-9]+ +256 +192 ' screenshots/pdf-images.txt
+          grep -Eq '^ *1 +0 +image +256 +192 ' screenshots/pdf-images.txt
           pdftoppm -f 1 -l 1 -r 96 -singlefile -png screenshots/pictochat-print-demo.pdf screenshots/pictochat-print-preview
           test -s screenshots/pictochat-print-preview.png
           echo 'Validated original 256x192 raster PictoChat PDF, no captions or overlays.'
