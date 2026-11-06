@@ -40,3 +40,9 @@ test("DS-style UI provides temporary room controls, undo and clearing on leave",
  assert.match(app,/messages\.replaceChildren\(\)/);
  assert.doesNotMatch(html,/localStorage|sessionStorage|indexedDB/);
 });
+test("shipped browser application matches TypeScript source after its DOM type annotation",()=>{
+ const ts=readFileSync(new URL("../../frontend/src/app.ts",import.meta.url),"utf8");
+ const runtime=readFileSync(new URL("../public/app.mjs",import.meta.url),"utf8");
+ const emitted=ts.replace("const $: any = (id: string) => document.getElementById(id);","const $=id=>document.getElementById(id);");
+ assert.equal(runtime,emitted);
+});
