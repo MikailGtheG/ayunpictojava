@@ -1,11 +1,14 @@
 import { importRoomKey, encryptPacket, decryptPacket, ReplayGuard } from "./crypto.mjs";
 import { createSessionIdentity, signMessage, verifyMessage, parseTrustedFingerprints } from "./identity.mjs";
 import { randomRoomId, sanitizeNickname, validateDraft } from "./session.mjs";
+import { preparePictoRustPrint } from "./pictorust-export.mjs";
 "use strict";
 const $: any = (id: string) => document.getElementById(id);
 const room=$("room"),token=$("token"),status=$("status"),messages=$("messages");
 const printMessages=document.getElementById("print-messages");
-function clearLocalMessages(){messages.replaceChildren();printMessages.replaceChildren();lastReceivedData=null;}
+const localExportPages=document.getElementById("pixel-print");
+const volatileMessages=[];
+function clearLocalMessages(){messages.replaceChildren();printMessages.replaceChildren();localExportPages.replaceChildren();volatileMessages.length=0;lastReceivedData=null;}
 const canvas=$("drawing"),ctx=canvas.getContext("2d"),encoder=new TextEncoder(),decoder=new TextDecoder("utf-8",{fatal:true});
 let socket=null,strokes=[],current=null,roomKey=null,replayGuard=null,sessionIdentity=null,trustedPeers=null;
 const MAX_BYTES=16384,MAX_POINTS=1200;
@@ -48,7 +51,7 @@ document.getElementById("copy-last").addEventListener("click",()=>{
  totalPoints=strokes.reduce((n,x)=>n+x.length,0);
  current=null;redraw();
 });
-document.getElementById("clear-chat").addEventListener("click",()=>messages.replaceChildren());
+document.getElementById("clear-chat").addEventListener("click",clearLocalMessages);
 document.getElementById("leave-room").addEventListener("click",()=>socket?.close());
 document.getElementById("exit-internal").addEventListener("click",()=>socket?.close());
 
@@ -216,6 +219,7 @@ $("undo").addEventListener("click",()=>{
  current=null;redraw();
 });
 function render(data,who){
+ volatileMessages.push({nickname:sanitizeNickname(data.nickname),text:data.text,strokes:data.strokes.map(stroke=>stroke.map(point=>[...point]))});
  lastReceivedData={text:data.text||"",strokes:data.strokes.map(x=>x.map(p=>[...p]))};
  const div=document.createElement("article");
  const visualLines=data.strokes?.length?5:Math.max(2,Math.min(5,Math.ceil(Array.from(data.text||"").length/36)+1));
@@ -304,6 +308,16 @@ $("send").addEventListener("click",async()=>{
   socket.send(encrypted);$("text").value="";strokes=[];current=null;totalPoints=0;redraw();
  }catch{setStatus("Nachricht zu groß oder Verschlüsselung fehlgeschlagen");}
 });
-$("pdf").addEventListener("click",()=>window.print());
-$("erase").addEventListener("click",()=>messages.replaceChildren());
+$("pdf").addEventListener("click",async()=>{
+ const control=$("pdf");
+ if(!volatileMessages.length){setStatus("Keine Nachrichten für den Pixel-Export vorhanden");return;}
+ control.disabled=true;
+ try{
+  const pages=await preparePictoRustPrint(volatileMessages,selectedRoomLetter,localExportPages);
+  if(!pages.length)throw new Error("No export pages");
+  window.print();
+ }catch(e){setStatus("PictoRust-Pixelexport fehlgeschlagen");}
+ finally{control.disabled=false;}
+});
+$("erase").addEventListener("click",clearLocalMessages);
 window.addEventListener("beforeunload",()=>socket?.close());
