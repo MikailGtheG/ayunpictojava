@@ -201,3 +201,21 @@ test("stateless temporary room API issues a usable admission token",async()=>{
  ws.close();
  await mustReject(invitation.roomId,"00".repeat(32));
 });
+
+test("first packet is delivered immediately after subscriber handshake", async () => {
+  // Each iteration reproduces the former race between HTTP 101 and room.subscribe().
+  for (let i = 0; i < 8; i++) {
+    const sender = await openSocket(ROOM_A, admission(ROOM_A));
+    const receiver = await openSocket(ROOM_A, admission(ROOM_A));
+    try {
+      const frame = Uint8Array.from([3, 1, i + 1]);
+      const delivery = nextBinary(receiver);
+      sender.send(frame); // No artificial delay; delivery must work right after upgrade.
+      const received = await delivery;
+      assert.deepEqual(received, frame);
+    } finally {
+      sender.close();
+      receiver.close();
+    }
+  }
+});
