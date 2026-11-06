@@ -88,7 +88,7 @@ jobs:
           pdftotext screenshots/pictorust-multipage-demo.pdf screenshots/multipage-text.txt
           if grep -Eq '[[:alnum:]]' screenshots/multipage-text.txt; then exit 1; fi
           pdfimages -list screenshots/pictorust-multipage-demo.pdf > screenshots/multipage-images.txt
-          grep -Eq '^ *4 +0 +image +256 +192 ' screenshots/multipage-images.txt
+          grep -Eq '^ *4 +[0-9]+ +image +256 +192 ' screenshots/multipage-images.txt
           echo 'Verified four raster-only PDF pages.'
           echo 'Validated original 256x192 raster PictoChat PDF, no captions or overlays.'
       - name: Upload visual proofs and logs
