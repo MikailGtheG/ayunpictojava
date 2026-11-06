@@ -78,7 +78,7 @@ jobs:
             exit 1
           fi
           pdfimages -list screenshots/pictochat-print-demo.pdf > screenshots/pdf-images.txt
-          grep -Eq '^ *1 +0 +image +256 +520 ' screenshots/pdf-images.txt
+          grep -Eq '^ *1 +0 +image +1024 +2080 ' screenshots/pdf-images.txt
           pdftoppm -f 1 -l 1 -r 96 -singlefile -png screenshots/pictochat-print-demo.pdf screenshots/pictochat-print-preview
           test -s screenshots/pictochat-print-preview.png
           test -s screenshots/pictorust-multipage-demo.pdf
@@ -88,9 +88,9 @@ jobs:
           pdftotext screenshots/pictorust-multipage-demo.pdf screenshots/multipage-text.txt
           if grep -Eq '[[:alnum:]]' screenshots/multipage-text.txt; then exit 1; fi
           pdfimages -list screenshots/pictorust-multipage-demo.pdf > screenshots/multipage-images.txt
-          grep -Eq '^ *1 +[0-9]+ +image +256 +520 ' screenshots/multipage-images.txt
+          grep -Eq '^ *1 +[0-9]+ +image +1024 +2080 ' screenshots/multipage-images.txt
           echo 'Verified one full A4 chat page for 13 messages.'
-          echo 'Validated original-width continuous 256x520 raster on A4, no captions or overlays.'
+          echo 'Validated high-density lossless 1024x2080 pixel-art raster on A4, no captions or overlays.'
       - name: Upload visual proofs and logs
         if: always()
         id: artifact
