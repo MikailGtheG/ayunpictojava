@@ -32,6 +32,14 @@ cargo run --example three_devices
 
 GitHub Actions runs this example as well as the unit, integration, Clippy and live WebSocket tests. **This is not yet a user-facing browser or production CLI**: keys and identities are ephemeral, methods that cannot recover in a test may still panic, and there is no durable state, authentication directory, certified identity lifecycle, or automatic offline recovery.
 
+## Client hardening and reconnect contract
+
+The reusable endpoint-owned client now returns explicit `Result` errors for malformed incoming frames and invalid MLS states rather than deliberately panicking in these public operations. The tests cover uninitialized clients, duplicate group creation, malformed TLS frames, invalid transitions, stale replays and oversized plaintext. A conservative 8-KiB application plaintext limit is enforced **before** MLS encryption to leave space for the fixed 16-KiB WebSocket transport framing.
+
+**Fail-closed reconnect:** call `Client::mark_transport_interrupted()` whenever a WebSocket closes or the application cannot prove that all MLS Commits were received. This blocks `send`, `add`, `remove`, and `process`, even if the old cryptographic group object still exists. Reconnecting to the WebSocket by itself **cannot** mark the group synchronized. To restore service, the caller must intentionally abandon the old group with `abandon_group_for_rejoin()`, obtain a **new authenticated Welcome** and ratchet tree through a separately verified membership process, and call `accept_welcome()`. The application must verify inviter credentials externally before doing so.
+
+This deliberately prioritizes avoiding stale-epoch sends over seamless reconnect. There is no automatic offline MLS Commit mailbox, no authenticated invitation directory, and no durable identity recovery. Abandoning the in-memory group is not a verified secure wipe of all provider state, browser memory or swap. No remote deployment should depend on this prototype.
+
 ## Separation and security limits
 
 **No changes to the current browser's cryptography have been made by this MLS laboratory.** The browser still uses experimental AES-256-GCM with an independently shared key plus ephemeral P-256 signatures; it does **not** negotiate MLS epochs. The relay now **also** accepts the opaque MLS transport framing v3, while leaving browser protocol v2 untouched. It does not parse or validate OpenMLS protocol contents. This is a transport test, not a deployed browser MLS client.
