@@ -19,14 +19,14 @@ function image(name) {
   });
 }
 
-function wrapLines(ctx, text, maxWidth) {
+function wrapLines(font, text, maxWidth) {
   const lines = [];
   for (const paragraph of String(text || "").split("\n")) {
     if (!paragraph) { lines.push(""); continue; }
     let line = "";
     for (const point of Array.from(paragraph)) {
       const candidate = line + point;
-      if (line && ctx.measureText(candidate).width > maxWidth) {
+      if (line && font.width(candidate) > maxWidth) {
         lines.push(line);
         line = point;
       } else {
@@ -38,14 +38,70 @@ function wrapLines(ctx, text, maxWidth) {
   return lines.length ? lines : [""];
 }
 
-function splitMessages(ctx, messages) {
+// The source font is the original nds.ttf. Rasterize each glyph on a fixed
+// integer grid and remove grayscale antialiasing before composing the message.
+// This avoids Chromium/PDF subpixel shifts and blurry doubled pixels.
+const GLYPH_SIZE = 20;
+const GLYPH_BASELINE = 13;
+function createPixelFont(ctx) {
+  const cache = new Map();
+  const widthOf = character => Math.max(1, Math.ceil(ctx.measureText(character).width));
+  function glyph(character) {
+    if (cache.has(character)) return cache.get(character);
+    const advance = widthOf(character);
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(advance + 5, 24);
+    canvas.height = GLYPH_SIZE;
+    const g = canvas.getContext("2d", { willReadFrequently: true });
+    g.font = '10px "nds"';
+    g.textBaseline = "alphabetic";
+    g.fillStyle = "#fff";
+    g.fillText(character, 1, GLYPH_BASELINE);
+    const imageData = g.getImageData(0, 0, canvas.width, canvas.height);
+    for (let i = 0; i < imageData.data.length; i += 4) {
+      const on = imageData.data[i + 3] >= 112 ? 255 : 0;
+      imageData.data[i] = 255;
+      imageData.data[i + 1] = 255;
+      imageData.data[i + 2] = 255;
+      imageData.data[i + 3] = on;
+    }
+    g.putImageData(imageData, 0, 0);
+    const item = { canvas, advance };
+    cache.set(character, item);
+    return item;
+  }
+  function width(text) {
+    return Array.from(text).reduce((total, char) => total + glyph(char).advance, 0);
+  }
+  function draw(target, text, x, top, color) {
+    const penX = Math.round(x), penY = Math.round(top);
+    const palette = document.createElement("canvas");
+    palette.width = Math.max(1, width(text) + 6);
+    palette.height = GLYPH_SIZE;
+    const p = palette.getContext("2d");
+    p.imageSmoothingEnabled = false;
+    let pos = 0;
+    for (const char of Array.from(text)) {
+      const bitmap = glyph(char);
+      p.drawImage(bitmap.canvas, pos, 0);
+      pos += bitmap.advance;
+    }
+    p.globalCompositeOperation = "source-in";
+    p.fillStyle = color;
+    p.fillRect(0, 0, palette.width, palette.height);
+    target.drawImage(palette, penX, penY);
+  }
+  return { width, draw };
+}
+
+function splitMessages(font, messages) {
   const parts = [];
   for (const msg of messages) {
     if (!msg || typeof msg.nickname !== "string" || typeof msg.text !== "string" || !Array.isArray(msg.strokes))
       throw new Error("Invalid temporary chat message");
     // One maximum-height original frame contains four ruled text lines.
     // Nothing is silently truncated: overflow creates another frame.
-    const lines = wrapLines(ctx, msg.text, 214);
+    const lines = wrapLines(font, msg.text, 214);
     if (!msg.text && msg.strokes.length) {
       parts.push({ ...msg, lines: [], size: 5 });
       continue;
@@ -89,7 +145,7 @@ function drawTinted(ctx, sprite, x, y, w, h, color) {
   ctx.drawImage(layer, x, y);
 }
 
-function drawBox(ctx, part, x, y, sprites) {
+function drawBox(ctx, part, x, y, sprites, font) {
   const height = FRAMES[part.size];
   const key = part.size;
   ctx.drawImage(sprites["box_bg" + key + ".png"], x, y, 234, height);
@@ -126,20 +182,16 @@ function drawBox(ctx, part, x, y, sprites) {
     ctx.restore();
   }
 
-  ctx.fillStyle = "#07068b";
-  ctx.font = "10px nds, monospace";
-  ctx.textBaseline = "alphabetic";
-  // The sender is inside the original inset tab at x+6,y+4.
+  // Match original PIXI BitmapText coordinates: x+6/y+4 sender,
+  // x+5/y+19 content. No floating CSS em boxes or browser line-height.
   ctx.save();
   ctx.beginPath(); ctx.rect(x + 6, y + 4, 80, 12); ctx.clip();
-  ctx.fillText(part.nickname, x + 6, y + 13);
+  font.draw(ctx, part.nickname, x + 6, y + 1, "#07068b");
   ctx.restore();
 
-  ctx.fillStyle = "#111";
-  ctx.font = "10px nds, monospace";
   ctx.save();
   ctx.beginPath(); ctx.rect(x + 4, y + 19, 226, height - 20); ctx.clip();
-  part.lines.forEach((line, i) => ctx.fillText(line, x + 5, y + 28 + i * 16));
+  part.lines.forEach((line, i) => font.draw(ctx, line, x + 5, y + 16 + i * 16, "#111111"));
   ctx.restore();
 }
 
@@ -152,7 +204,8 @@ export async function renderPictoRustPages(messages, roomLetter = "A") {
   if (!document.fonts.check('10px "nds"')) throw new Error("Original Nintendo DS font unavailable");
   const measure = document.createElement("canvas").getContext("2d");
   measure.font = "10px nds, monospace";
-  const parts = splitMessages(measure, messages);
+  const pixelFont = createPixelFont(measure);
+  const parts = splitMessages(pixelFont, messages);
   const pages = groupPages(parts);
   if (pages.length > 200) throw new Error("Too many export pages");
 
@@ -176,10 +229,18 @@ export async function renderPictoRustPages(messages, roomLetter = "A") {
     ctx.drawImage(sprites["letter_room_" + letter + ".png"], 2, 0, 12, 12);
     let y = CONTENT_TOP;
     for (const part of group) {
-      drawBox(ctx, part, 21, y, sprites);
+      drawBox(ctx, part, 21, y, sprites, pixelFont);
       y += FRAMES[part.size];
     }
-    return canvas.toDataURL("image/png");
+    // PDF output has four identical physical pixels per logical DS pixel.
+    // Pre-upscale in the raster itself; Chromium cannot interpolate it in print.
+    const highResolution = document.createElement("canvas");
+    highResolution.width = WIDTH * 4;
+    highResolution.height = HEIGHT * 4;
+    const highCtx = highResolution.getContext("2d");
+    highCtx.imageSmoothingEnabled = false;
+    highCtx.drawImage(canvas, 0, 0, highResolution.width, highResolution.height);
+    return highResolution.toDataURL("image/png");
   });
 }
 
