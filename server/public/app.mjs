@@ -4,6 +4,8 @@ import { randomRoomId, sanitizeNickname, validateDraft } from "./session.mjs";
 "use strict";
 const $=id=>document.getElementById(id);
 const room=$("room"),token=$("token"),status=$("status"),messages=$("messages");
+const printMessages=document.getElementById("print-messages");
+function clearLocalMessages(){messages.replaceChildren();printMessages.replaceChildren();lastReceivedData=null;}
 const canvas=$("drawing"),ctx=canvas.getContext("2d"),encoder=new TextEncoder(),decoder=new TextDecoder("utf-8",{fatal:true});
 let socket=null,strokes=[],current=null,roomKey=null,replayGuard=null,sessionIdentity=null,trustedPeers=null;
 const MAX_BYTES=16384,MAX_POINTS=1200;
@@ -60,7 +62,7 @@ $("new-room").addEventListener("click",async()=>{
   const invitation=await response.json();
   if(!/^[0-9a-f]{32}$/.test(invitation.roomId)||!/^[0-9a-f]{64}$/.test(invitation.token))throw new Error("invalid invitation");
   room.value=invitation.roomId;token.value=invitation.token;
-  messages.replaceChildren();
+  clearLocalMessages();
   setStatus("Temporärer Raum erstellt (6 Stunden gültig). Einladung nur über einen sicheren Kanal teilen.");
  }catch{setStatus("Raumerstellung fehlgeschlagen. Läuft der lokale Rust-Server?");}
  finally{$("new-room").disabled=false;}
@@ -230,6 +232,27 @@ function render(data,who){
    for(const stroke of data.strokes)line(stroke,context);
    const image=document.createElement("img");image.alt="Gezeichnete Nachricht";image.src=painting.toDataURL("image/png");div.append(image);
  }
+ // Build a SECOND, linear, A4-safe representation. Never move or restyle
+ // the interactive 256x384 PictoChat screen for printing.
+ const paper=document.createElement("article");paper.className="print-message";
+ paper.style.setProperty("--print-color","#454591");
+ paper.style.setProperty("--print-accent","#eaeafb");
+ const sender=document.createElement("div");sender.className="print-sender";
+ sender.textContent=sanitizeNickname(data.nickname);
+ paper.append(sender);
+ if(data.text){
+  const paragraph=document.createElement("p");paragraph.className="print-text";
+  paragraph.textContent=data.text;paper.append(paragraph);
+ }
+ const drawing=div.querySelector("img");
+ if(drawing){
+  const printedDrawing=document.createElement("img");
+  printedDrawing.className="print-drawing";
+  printedDrawing.alt="Zeichnung";
+  printedDrawing.src=drawing.src;
+  paper.append(printedDrawing);
+ }
+ printMessages.append(paper);
  messages.append(div);messages.scrollTop=messages.scrollHeight;
 }
 function valid(data){
@@ -264,7 +287,7 @@ $("connect").addEventListener("click",async()=>{
  };
  ws.onerror=()=>setStatus("Verbindungsfehler oder Raumzugang abgelehnt");
  ws.onclose=()=>{if(socket===ws){socket=null;roomKey=null;replayGuard=null;trustedPeers=null;sessionIdentity=null;lastReceivedData=null;
-  messages.replaceChildren();strokes=[];current=null;totalPoints=0;redraw();
+  clearLocalMessages();strokes=[];current=null;totalPoints=0;redraw();
   token.value="";$("e2ee-key").value="";$("trusted-fingerprints").value="";
   enabled(false);setStatus("Sitzung beendet – lokale Nachrichten und Schlüssel verworfen");renewIdentity();}};
 });
