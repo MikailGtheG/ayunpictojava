@@ -254,8 +254,8 @@ async function main() {
     const pngData = await alice.locator("#pixel-print .pixel-page").first().evaluate(img => ({
       url:img.src, naturalWidth:img.naturalWidth, naturalHeight:img.naturalHeight, complete:img.complete
     }));
-    assert.equal(pngData.naturalWidth,256);
-    assert.equal(pngData.naturalHeight,520);
+    assert.equal(pngData.naturalWidth,1024);
+    assert.equal(pngData.naturalHeight,2080);
     assert.ok(pngData.complete && pngData.url.startsWith("data:image/png;base64,"));
     await writeFile(`${screenshots}/pictorust-export-page-1.png`,
       Buffer.from(pngData.url.split(",")[1],"base64"));
