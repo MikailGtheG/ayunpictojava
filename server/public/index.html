@@ -30,25 +30,29 @@ button:disabled{opacity:.5;cursor:default}
 .entry img{display:block;width:100%;max-height:95px;object-fit:contain;object-position:left;image-rendering:pixelated;background:#fff}
 #top-scroll{position:absolute;left:1%;top:22%;width:4%;height:70%;display:flex;flex-direction:column;justify-content:space-between}
 #top-scroll button{border:1px solid #8493aa;background:#eef0f7;padding:0;color:#415a8c;min-height:21px;font-size:12px}
-.bottom-screen{position:absolute;top:50%;left:0;width:100%;height:50%;background:url("/original/images/bottom_screen.png") center/100% 100% no-repeat;overflow:hidden}
-#writing-board{position:absolute;top:5%;left:12%;right:12%;height:48%;background:repeating-linear-gradient(to bottom,rgba(255,255,255,.84) 0,rgba(255,255,255,.84) 19%,rgba(150,161,194,.38) 20%);border:1px solid #8b94aa;text-align:left}
+.bottom-screen{position:absolute;top:50%;left:0;width:100%;height:50%;background:url("/original/images/drawui.png") center/100% 100% no-repeat;overflow:hidden}
+#writing-board{position:absolute;top:7%;left:8%;right:7%;height:45%;background:transparent;border:0;text-align:left}
 #text{position:absolute;top:0;left:0;width:100%;height:100%;border:0;outline:0;resize:none;background:transparent;color:#212121;line-height:1.4;padding:3px;font-size:clamp(10px,1.7vw,15px);overflow:auto}
 #drawing{position:absolute;top:0;left:0;width:100%;height:100%;touch-action:none;image-rendering:pixelated;cursor:crosshair}
 #writing-board.mode-text #drawing{pointer-events:none}
 #writing-board.mode-pen #text{pointer-events:none}
-#tool-rail{position:absolute;top:5%;left:0.5%;width:10.5%;display:grid;gap:2px}
-.tool-btn{min-height:22px;border:1px solid #8e9dad;background:#dfe4f1;color:#435b82;padding:0;font-weight:bold;font-size:13px}
-.tool-btn[aria-pressed=true]{background:#7873d6;color:#fff;box-shadow:inset 1px 1px #48419c}
-#send-side{position:absolute;right:1%;top:5%;height:49%;width:10.5%;display:grid;gap:2px;align-content:start}
-#send-side button{border:1px solid #8c98b0;background:#e9e9f2;color:#425b84;min-height:23px;padding:0;font-size:clamp(9px,1.2vw,12px)}
-#send-side #send{background:#dbecce;color:#285e25;border-color:#94b183;font-weight:bold}
-#touch-keys{position:absolute;left:10.8%;right:10.8%;top:55%;height:43%;display:grid;grid-template-columns:repeat(12,minmax(0,1fr));grid-auto-rows:minmax(0,1fr);gap:1px;align-content:stretch}
-#touch-keys .touch-label{grid-column:span 2;display:flex;justify-content:center;align-items:center;background:#c9d4e4;border:1px solid #8796a6;font-size:9px}
-#touch-keys button{border:1px solid #9ba5b4;background:linear-gradient(#fff,#d8dce6);border-radius:1px;min-width:0;padding:0;color:#25344a;font-size:clamp(9px,1.35vw,13px);line-height:1}
-#touch-keys button:active{background:#bdc8eb}
-#touch-keys button[data-char=" "]{grid-column:span 4}
+#tool-rail{position:absolute;top:18%;left:0%;width:7%;display:grid;gap:0}
+.tool-btn{min-height:18px;border:0;background:transparent;color:transparent;padding:0;font-weight:bold;font-size:0}
+.tool-btn[aria-pressed=true]{outline:1px solid #675ac1;outline-offset:-1px;background:rgba(102,96,210,.1)}
+#send-side{position:absolute;right:0%;top:55%;height:42%;width:12.3%;display:grid;gap:0;align-content:start}
+#send-side button{border:0;background:transparent;color:transparent;min-height:21px;padding:0;font-size:0}
+#send-side #send{background:rgba(94,170,84,.08);font-weight:bold}
+#touch-keys{position:absolute;left:8.2%;right:14%;top:55%;height:42%;display:grid;grid-template-columns:repeat(12,minmax(0,1fr));grid-template-rows:repeat(4,1fr);gap:0;z-index:1}
+#touch-keys button{border:0;background:transparent;color:transparent;font-size:0;min-width:0;min-height:0;padding:0;border-radius:0}
+#touch-keys button:focus-visible{outline:2px solid #6962c7;outline-offset:-2px}
+#touch-keys button:active{background:rgba(113,110,194,.18)}
+#touch-keys button[data-char=" "]{grid-column:span 3}
 #touch-keys button[data-char="BACKSPACE"]{grid-column:span 2}
 #touch-keys button[data-char="ENTER"]{grid-column:span 2}
+#international-keys{position:absolute;left:8.2%;right:14%;top:55%;height:42%;display:none;grid-template-columns:repeat(10,minmax(0,1fr));grid-template-rows:repeat(4,1fr);gap:1px;z-index:2;background:#ececf1;padding:1px}
+#international-keys.visible{display:grid}
+#international-keys button{border:1px solid #b1b3c2;background:linear-gradient(#fff,#d8dbe3);color:#1f2a41;font-size:clamp(9px,1.25vw,12px);min-width:0;min-height:0;padding:0;border-radius:0}
+#international-keys button:active{background:#c6c3f2}
 #statusbar{position:absolute;bottom:0;right:0;left:0;background:rgba(255,255,255,.85);height:3.5%;color:#4d688c;font-size:9px}
 #status{font-size:11px;display:inline}
 #lobby{position:absolute;inset:0;background:#fff url("/original/images/intro_bg.png") center/100% 100% no-repeat;z-index:4;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:7px;padding:18px 24px}
@@ -101,6 +105,7 @@ button:disabled{opacity:.5;cursor:default}
       <button class="tool-btn" type="button" id="text-tool" aria-label="Texteingabe" aria-pressed="false">A</button>
       <button class="tool-btn" type="button" id="eraser-tool" aria-label="Radiergummi">▱</button>
       <button class="tool-btn" type="button" id="clear" aria-label="Zeichnung löschen">□</button>
+      <button class="tool-btn" type="button" id="keyboard-mode" aria-label="Internationale Tastatur umschalten">あ</button>
     </nav>
     <div id="send-side">
       <button type="button" id="send" disabled>SEND ↑</button>
@@ -108,15 +113,99 @@ button:disabled{opacity:.5;cursor:default}
       <button type="button" id="erase" aria-label="Chat löschen">CLEAR</button>
       <button type="button" id="copy-last" aria-label="Letzte Nachricht kopieren">COPY</button>
     </div>
-    <section id="touch-keys" role="group" aria-label="PictoChat Bildschirmtastatur">
-      <span class="touch-label">ABC</span>
-      <button type="button" data-char="1">1</button><button type="button" data-char="2">2</button><button type="button" data-char="3">3</button><button type="button" data-char="4">4</button><button type="button" data-char="5">5</button><button type="button" data-char="6">6</button><button type="button" data-char="7">7</button><button type="button" data-char="8">8</button><button type="button" data-char="9">9</button><button type="button" data-char="0">0</button>
-      <button type="button" data-char="q">q</button><button type="button" data-char="w">w</button><button type="button" data-char="e">e</button><button type="button" data-char="r">r</button><button type="button" data-char="t">t</button><button type="button" data-char="y">y</button><button type="button" data-char="u">u</button><button type="button" data-char="i">i</button><button type="button" data-char="o">o</button><button type="button" data-char="p">p</button><button type="button" data-char="ä">ä</button><button type="button" data-char="ö">ö</button>
-      <button type="button" data-char="a">a</button><button type="button" data-char="s">s</button><button type="button" data-char="d">d</button><button type="button" data-char="f">f</button><button type="button" data-char="g">g</button><button type="button" data-char="h">h</button><button type="button" data-char="j">j</button><button type="button" data-char="k">k</button><button type="button" data-char="l">l</button><button type="button" data-char="ü">ü</button><button type="button" data-char="ß">ß</button><button type="button" data-char="ç">ç</button>
-      <button type="button" data-char="z">z</button><button type="button" data-char="x">x</button><button type="button" data-char="c">c</button><button type="button" data-char="v">v</button><button type="button" data-char="b">b</button><button type="button" data-char="n">n</button><button type="button" data-char="m">m</button><button type="button" data-char="ğ">ğ</button><button type="button" data-char="ı">ı</button><button type="button" data-char="İ">İ</button><button type="button" data-char="ş">ş</button><button type="button" data-char="BACKSPACE">⌫</button>
-      <button type="button" data-char=" ">SPACE</button><button type="button" data-char="ENTER">↵</button><button type="button" data-char="Ä">Ä</button><button type="button" data-char="Ö">Ö</button><button type="button" data-char="Ü">Ü</button><button type="button" data-char="Ç">Ç</button><button type="button" data-char="Ğ">Ğ</button><button type="button" data-char="Ş">Ş</button><button type="button" data-char="😊">☺</button>
+    <section id="touch-keys" role="group" aria-label="Original PictoChat QWERTY keyboard">
+      <button type="button" data-char="1" aria-label="1">1</button>
+      <button type="button" data-char="2" aria-label="2">2</button>
+      <button type="button" data-char="3" aria-label="3">3</button>
+      <button type="button" data-char="4" aria-label="4">4</button>
+      <button type="button" data-char="5" aria-label="5">5</button>
+      <button type="button" data-char="6" aria-label="6">6</button>
+      <button type="button" data-char="7" aria-label="7">7</button>
+      <button type="button" data-char="8" aria-label="8">8</button>
+      <button type="button" data-char="9" aria-label="9">9</button>
+      <button type="button" data-char="0" aria-label="0">0</button>
+      <button type="button" data-char="-" aria-label="-">-</button>
+      <button type="button" data-char="=" aria-label="=">=</button>
+      <button type="button" data-char="q" aria-label="q">q</button>
+      <button type="button" data-char="w" aria-label="w">w</button>
+      <button type="button" data-char="e" aria-label="e">e</button>
+      <button type="button" data-char="r" aria-label="r">r</button>
+      <button type="button" data-char="t" aria-label="t">t</button>
+      <button type="button" data-char="y" aria-label="y">y</button>
+      <button type="button" data-char="u" aria-label="u">u</button>
+      <button type="button" data-char="i" aria-label="i">i</button>
+      <button type="button" data-char="o" aria-label="o">o</button>
+      <button type="button" data-char="p" aria-label="p">p</button>
+      <button type="button" data-char="BACKSPACE" aria-label="BACKSPACE">⌫</button>
+      <button type="button" data-char="CAPS" aria-label="CAPS">CAPS</button>
+      <button type="button" data-char="a" aria-label="a">a</button>
+      <button type="button" data-char="s" aria-label="s">s</button>
+      <button type="button" data-char="d" aria-label="d">d</button>
+      <button type="button" data-char="f" aria-label="f">f</button>
+      <button type="button" data-char="g" aria-label="g">g</button>
+      <button type="button" data-char="h" aria-label="h">h</button>
+      <button type="button" data-char="j" aria-label="j">j</button>
+      <button type="button" data-char="k" aria-label="k">k</button>
+      <button type="button" data-char="l" aria-label="l">l</button>
+      <button type="button" data-char="ENTER" aria-label="ENTER">↵</button>
+      <button type="button" data-char="SHIFT" aria-label="SHIFT">SHIFT</button>
+      <button type="button" data-char="z" aria-label="z">z</button>
+      <button type="button" data-char="x" aria-label="x">x</button>
+      <button type="button" data-char="c" aria-label="c">c</button>
+      <button type="button" data-char="v" aria-label="v">v</button>
+      <button type="button" data-char="b" aria-label="b">b</button>
+      <button type="button" data-char="n" aria-label="n">n</button>
+      <button type="button" data-char="m" aria-label="m">m</button>
+      <button type="button" data-char="," aria-label=",">,</button>
+      <button type="button" data-char="." aria-label=".">.</button>
+      <button type="button" data-char="/" aria-label="/">/</button>
+      <button type="button" data-char=";" aria-label=";">;</button>
+      <button type="button" data-char="'" aria-label="'">'</button>
+      <button type="button" data-char=" " aria-label="Leertaste">SPACE</button>
     </section>
-    <div id="statusbar"><span id="status" role="status">Nicht verbunden</span></div>
+    <section id="international-keys" role="group" aria-label="Deutsch / Türkçe">
+      <button type="button" data-char="ä" aria-label="ä">ä</button>
+      <button type="button" data-char="ö" aria-label="ö">ö</button>
+      <button type="button" data-char="ü" aria-label="ü">ü</button>
+      <button type="button" data-char="ß" aria-label="ß">ß</button>
+      <button type="button" data-char="Ä" aria-label="Ä">Ä</button>
+      <button type="button" data-char="Ö" aria-label="Ö">Ö</button>
+      <button type="button" data-char="Ü" aria-label="Ü">Ü</button>
+      <button type="button" data-char="ç" aria-label="ç">ç</button>
+      <button type="button" data-char="ğ" aria-label="ğ">ğ</button>
+      <button type="button" data-char="ı" aria-label="ı">ı</button>
+      <button type="button" data-char="İ" aria-label="İ">İ</button>
+      <button type="button" data-char="ş" aria-label="ş">ş</button>
+      <button type="button" data-char="Ç" aria-label="Ç">Ç</button>
+      <button type="button" data-char="Ğ" aria-label="Ğ">Ğ</button>
+      <button type="button" data-char="Ş" aria-label="Ş">Ş</button>
+      <button type="button" data-char="à" aria-label="à">à</button>
+      <button type="button" data-char="á" aria-label="á">á</button>
+      <button type="button" data-char="é" aria-label="é">é</button>
+      <button type="button" data-char="ê" aria-label="ê">ê</button>
+      <button type="button" data-char="ë" aria-label="ë">ë</button>
+      <button type="button" data-char="ñ" aria-label="ñ">ñ</button>
+      <button type="button" data-char="€" aria-label="€">€</button>
+      <button type="button" data-char="₺" aria-label="₺">₺</button>
+      <button type="button" data-char="😊" aria-label="😊">😊</button>
+      <button type="button" data-char="!" aria-label="!">!</button>
+      <button type="button" data-char="?" aria-label="?">?</button>
+      <button type="button" data-char="@" aria-label="@">@</button>
+      <button type="button" data-char="#" aria-label="#">#</button>
+      <button type="button" data-char="%" aria-label="%">%</button>
+      <button type="button" data-char="&amp;" aria-label="&amp;">&amp;</button>
+      <button type="button" data-char="+" aria-label="+">+</button>
+      <button type="button" data-char="-" aria-label="-">-</button>
+      <button type="button" data-char="=" aria-label="=">=</button>
+      <button type="button" data-char="(" aria-label="(">(</button>
+      <button type="button" data-char=")" aria-label=")">)</button>
+      <button type="button" data-char="." aria-label=".">.</button>
+      <button type="button" data-char="," aria-label=",">,</button>
+      <button type="button" data-char=" " aria-label="Leertaste">SPACE</button>
+      <button type="button" data-char="BACKSPACE" aria-label="BACKSPACE">⌫</button>
+      <button type="button" data-char="ENTER" aria-label="ENTER">↵</button>
+    </section>
+        <div id="statusbar"><span id="status" role="status">Nicht verbunden</span></div>
   </section>
   <section id="lobby" aria-label="PictoChat Lobby">
     <img id="lobby-logo" src="/original/images/logo.png" alt="Original PictoChat Logo">
