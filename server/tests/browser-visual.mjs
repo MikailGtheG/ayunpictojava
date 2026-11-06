@@ -309,7 +309,9 @@ async function main() {
       printBackground:true,preferCSSPageSize:true,displayHeaderFooter:false,scale:1
     });
     // Restore only the original real ephemeral messages for any next export.
+    await alice.locator("#security-panel summary").click();
     await alice.locator("#pdf").click();
+    await alice.locator("#security-panel summary").click();
     await alice.waitForFunction(() =>
       document.querySelectorAll("#pixel-print .pixel-page").length===1);
 
