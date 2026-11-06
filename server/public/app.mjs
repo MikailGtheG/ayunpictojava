@@ -208,7 +208,9 @@ $("undo").addEventListener("click",()=>{
 });
 function render(data,who){
  lastReceivedData={text:data.text||"",strokes:data.strokes.map(x=>x.map(p=>[...p]))};
- const div=document.createElement("article");div.className="entry";
+ const div=document.createElement("article");
+ const visualLines=data.strokes?.length?5:Math.max(2,Math.min(5,Math.ceil(Array.from(data.text||"").length/36)+1));
+ div.className="entry lines-"+visualLines;
  const name=document.createElement("div");name.className="who";name.textContent=who;
  div.append(name);
  if(data.text){const p=document.createElement("div");p.className="body";p.textContent=data.text;div.append(p);}
