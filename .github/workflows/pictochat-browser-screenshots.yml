@@ -89,8 +89,9 @@ jobs:
             echo ''
             echo "[📷 Download both screenshots (PNG)](${ARTIFACT_URL})"
             echo ''
-            echo 'Files: `pictochat-desktop.png`, `pictochat-mobile.png` and `pictochat-print-demo.pdf`'
+            echo 'Files: `pictochat-original-stage.png`, `pictochat-original-lobby.png`, `pictochat-desktop.png`, `pictochat-mobile.png` and `pictochat-print-demo.pdf`'
             echo ''
+            echo 'The cropped stage images show the 256×384 original sprite geometry; Playwright enforces the original PIXI hitbox coordinates.'
             echo 'The PDF tests the real browser print stylesheet with Unicode and a canvas drawing.'
             echo 'All visible chat content is synthetic; credentials are redacted before capture.'
             echo ''
