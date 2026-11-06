@@ -174,6 +174,98 @@ button:disabled{opacity:.5;cursor:default}
 #touch-keys:has(~#international-keys.visible){visibility:hidden}
 #international-keys button{color:transparent}
 #outside-actions #undo-outside{display:inline-block}
+/* Pixel-exact compositing derived from main-fork generateMessageBox().
+   The original PIXI rendering order is bg -> lines -> outline -> name -> content.
+   Do NOT replace these authentic sprite alpha masks with CSS borders. */
+#messages .entry{
+  --frame-color:#06068c;
+  --line-color:#b8b8e4;
+  --outline-sprite:url("/original/images/box_outline5.png");
+  --lines-sprite:url("/original/images/box_lines5.png");
+  position:relative;isolation:isolate;flex:none;
+  width:100%;margin:0;padding:0;border:0;box-shadow:none;
+  background:url("/original/images/box_bg5.png") center/100% 100% no-repeat;
+  image-rendering:pixelated;
+  overflow:hidden;
+}
+#messages .entry.lines-1{aspect-ratio:234/22;background-image:url("/original/images/box_bg1.png");--outline-sprite:url("/original/images/box_outline1.png");--lines-sprite:url("/original/images/box_lines1.png")}
+#messages .entry.lines-2{aspect-ratio:234/38;background-image:url("/original/images/box_bg2.png");--outline-sprite:url("/original/images/box_outline2.png");--lines-sprite:url("/original/images/box_lines2.png")}
+#messages .entry.lines-3{aspect-ratio:234/54;background-image:url("/original/images/box_bg3.png");--outline-sprite:url("/original/images/box_outline3.png");--lines-sprite:url("/original/images/box_lines3.png")}
+#messages .entry.lines-4{aspect-ratio:234/70;background-image:url("/original/images/box_bg4.png");--outline-sprite:url("/original/images/box_outline4.png");--lines-sprite:url("/original/images/box_lines4.png")}
+#messages .entry.lines-5{aspect-ratio:234/85;background-image:url("/original/images/box_bg5.png");--outline-sprite:url("/original/images/box_outline5.png");--lines-sprite:url("/original/images/box_lines5.png")}
+#messages .entry::before,#messages .entry::after{
+  content:"";display:block;position:absolute;inset:0;pointer-events:none;
+  mask-repeat:no-repeat;mask-position:center;mask-size:100% 100%;
+  -webkit-mask-repeat:no-repeat;-webkit-mask-position:center;-webkit-mask-size:100% 100%;
+}
+#messages .entry::before{
+  z-index:1;background-color:var(--line-color);
+  mask-image:var(--lines-sprite);-webkit-mask-image:var(--lines-sprite);
+}
+#messages .entry::after{
+  z-index:4;background-color:var(--frame-color);border:0;
+  mask-image:var(--outline-sprite);-webkit-mask-image:var(--outline-sprite);
+}
+#messages .entry .who{
+  position:absolute;left:2.56410256%;top:4.70588235%;z-index:5;
+  width:35.5%;height:15%;margin:0;padding:0;
+  color:var(--frame-color);background:none;border:0;
+  font:normal min(20px, calc((100vw - 16px) * 10 / 256))/1 nds,monospace;
+  white-space:nowrap;overflow:hidden;text-overflow:clip;
+}
+#messages .entry .body{
+  position:absolute;left:2.5641%;top:23%;width:94%;height:74%;
+  margin:0;padding:0;z-index:3;color:#111;
+  font:normal min(20px, calc((100vw - 16px) * 10 / 256))/1.55 nds,monospace;
+  white-space:pre-wrap;overflow-wrap:anywhere;overflow:hidden;
+}
+#messages .entry img{
+  position:absolute;left:0;top:0;width:100%;height:100%;max-height:none;
+  margin:0;padding:0;border:0;background:transparent;
+  object-fit:fill;object-position:left top;z-index:2;image-rendering:pixelated;
+  clip-path:polygon(39% 0,100% 0,100% 100%,0 100%,0 23%,39% 23%);
+}
+/* Original drawing canvas is box_bg5 + box_lines + box_outline5
+   at (21,207), while drawui.png itself only supplies tools/keyboard. */
+#writing-board{
+  position:absolute;left:8.203125%;top:7.8125%;width:91.40625%;height:44.2708333333%;
+  margin:0;padding:0;border:0;box-shadow:none;background:url("/original/images/box_bg5.png") center/100% 100% no-repeat;
+  image-rendering:pixelated;isolation:isolate;overflow:hidden;
+  --frame-color:#07078d;--line-color:#b8b8df;
+}
+#writing-board::before,#writing-board::after{
+  content:"";position:absolute;inset:0;pointer-events:none;
+  mask-position:center;mask-size:100% 100%;mask-repeat:no-repeat;
+  -webkit-mask-position:center;-webkit-mask-size:100% 100%;-webkit-mask-repeat:no-repeat;
+}
+#writing-board::before{
+  z-index:1;background-color:var(--line-color);
+  mask-image:url("/original/images/box_lines5.png");
+  -webkit-mask-image:url("/original/images/box_lines5.png");
+}
+#writing-board::after{
+  z-index:4;background-color:var(--frame-color);
+  mask-image:url("/original/images/box_outline5.png");
+  -webkit-mask-image:url("/original/images/box_outline5.png");
+}
+#draft-name{
+  position:absolute;left:2.5641%;top:4.70588%;width:35%;height:15%;
+  z-index:5;pointer-events:none;white-space:nowrap;overflow:hidden;
+  color:var(--frame-color);
+  font:normal min(20px, calc((100vw - 16px) * 10 / 256))/1 nds,monospace;
+}
+#writing-board #drawing{
+  position:absolute;inset:0;width:100%;height:100%;z-index:3;
+  background:transparent;outline:0;border:0;cursor:crosshair;
+  clip-path:polygon(39% 0,100% 0,100% 100%,0 100%,0 23%,39% 23%);
+}
+#writing-board #text{
+  position:absolute;left:2.5641%;top:24%;width:94%;height:71%;z-index:3;
+  margin:0;padding:0;color:#171717;background:transparent;border:0;outline:0;
+  resize:none;overflow:auto;font:normal min(20px, calc((100vw - 16px) * 10 / 256))/1.55 nds,monospace;
+}
+#writing-board.mode-text #text{pointer-events:auto}
+#writing-board.mode-pen #drawing{pointer-events:auto}
 @media print{body{background:white}#lobby,.bottom-screen,#outside-actions,#security-panel,.warning,#top-scroll{display:none!important}#page{display:block}#picto{width:100%;height:auto;aspect-ratio:auto;box-shadow:none;border:0;background:white;overflow:visible}.top-screen,#messages{position:static;height:auto;width:auto;overflow:visible}#room-head{position:static;height:30px}#statusbar{display:none}.entry{break-inside:avoid}}
 </style>
 </head>
@@ -188,7 +280,7 @@ button:disabled{opacity:.5;cursor:default}
   <section class="bottom-screen" aria-label="Touchscreen">
     <button type="button" id="exit-internal" aria-label="Raum verlassen">EXIT</button>
     <div id="top-scroll"><button id="scroll-up" aria-label="Nach oben">▲</button><button id="scroll-down" aria-label="Nach unten">▼</button></div>
-    <div id="writing-board" class="mode-pen">
+    <div id="writing-board" class="mode-pen"><span id="draft-name" aria-hidden="true">Gast</span>
       <textarea id="text" maxlength="2000" placeholder="ÄÖÜ ß ğışç 😊" aria-label="Text eingeben"></textarea>
       <canvas id="drawing" width="512" height="170" aria-label="Zeichenfeld"></canvas>
     </div>
