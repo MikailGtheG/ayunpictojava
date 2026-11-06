@@ -84,6 +84,27 @@ button:disabled{opacity:.5;cursor:default}
 #outside-actions button{padding:5px}
 .warning{width:min(512px,calc(100vw - 16px));font:11px/1.3 nds,monospace;text-align:left;color:#54526b;background:#f4f1d9;border:1px solid #b7b393;padding:5px}
 @media(max-width:540px){#page{padding-top:4px;gap:5px}#picto{width:min(100vw - 8px,512px)}#room-head{font-size:10px}.entry .body{font-size:11px}#touch-keys button{font-size:10px}#security-panel{width:calc(100vw - 8px)}}
+/* Original room selection sprites use x=31, y=224+32*n, w=192,h=32.
+   The original logo is 93x45 at the centered x=81.5 and y≈50. */
+#lobby{display:block;position:absolute;inset:0;padding:0;gap:0;background:#fff url("/original/images/intro_bg.png") center/100% 100% no-repeat}
+#lobby-logo{position:absolute;left:31.8359375%;top:13.0208333333%;width:36.328125%;height:11.71875%;margin:0;image-rendering:pixelated}
+#lobby h1{display:none}
+#lobby .lobby-entry{position:static;font-size:11px}
+#lobby label[for="nickname"]{position:absolute;left:32%;top:29.1666666667%;width:36%;text-align:left}
+#lobby #nickname{position:absolute;left:31.8359375%;top:33.0729166667%;width:36.328125%;height:6.25%;min-height:0;margin:0;padding:0;border:1px solid #333;font-size:clamp(10px,1.4vw,12px)}
+#lobby #new-room{position:absolute;left:21%;top:42.1875%;width:58%;height:5.7291666667%;min-height:0;margin:0;padding:0;border:1px solid #79859e;background:#e9ecf8;color:#25334a;font-size:clamp(9px,1.25vw,11px)}
+#lobby #connect{position:absolute;left:31.8359375%;top:49.21875%;width:36.328125%;height:5.7291666667%;min-height:0;margin:0;padding:0;border:1px solid #718a93;background:#d7e5dd;color:#234a32;font-size:clamp(10px,1.4vw,12px)}
+#lobby #disconnect{display:none}
+#lobby .lobby-note{position:absolute;left:13%;top:55.5%;width:74%;max-width:none;margin:0;font:clamp(8px,1.1vw,10px)/1.1 nds,monospace}
+#lobby .room-buttons{position:absolute;left:0;top:0;width:100%;height:100%;display:block;pointer-events:none}
+#lobby .room-buttons button{position:absolute;left:12.109375%;width:75%;height:8.3333333333%;min-height:0;margin:0;padding:0;border:0;border-radius:0;background-position:center;background-size:100% 100%;color:transparent;font-size:0;pointer-events:auto;image-rendering:pixelated}
+#lobby .room-buttons button:nth-child(1){top:58.3333333333%;background-image:url("/original/images/room_a.png")}
+#lobby .room-buttons button:nth-child(2){top:66.6666666667%;background-image:url("/original/images/room_b.png")}
+#lobby .room-buttons button:nth-child(3){top:75%;background-image:url("/original/images/room_c.png")}
+#lobby .room-buttons button:nth-child(4){top:83.3333333333%;background-image:url("/original/images/room_d.png")}
+#lobby .room-buttons button:nth-child(5){top:91.6666666667%;background-image:url("/original/images/room_e.png")}
+#lobby .room-buttons button[aria-pressed=true]{outline:1px solid #8c7adc;outline-offset:-2px;filter:none}
+#lobby .room-buttons button:focus-visible{outline:2px solid #445ca8;outline-offset:-2px}
 /* PIXI source of truth: connection (1,1), room badge (1,175),
    scroll/message surface starts at x=21 and ends at y=189. */
 #room-head{position:absolute;left:0;top:0;width:100%;height:100%;display:block;pointer-events:none}
