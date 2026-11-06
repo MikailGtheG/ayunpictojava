@@ -1,4 +1,14 @@
-# Pictochat Online
+# PictoRust
+
+**PictoRust** is the new name for the ongoing Rust and TypeScript modernization of the original Nintendo DS PictoChat browser implementation.
+
+The modern client is in `frontend/`, the volatile Rust relay is in `server/`, and the independent OpenMLS security laboratory is in `mls-lab/`. The graphical interface reuses the original fork's PictoChat sprites and pixel font.
+
+**Pixel-perfect PDF export** renders each original 256×192 chat top screen as an image and prints one image per PDF page. No headers, footers, explanatory notes, access tokens or document-style text cards are part of the export. The local browser holds the history only for the active session.
+
+This development branch is not ready for a public deployment: OpenMLS is not yet integrated into the shipping browser. The original Java implementation remains below for historical compatibility.
+
+## Original fork / legacy Java documentation
 
 Pictochat for the Nintendo DS & DSi, recreated for browsers!
 
