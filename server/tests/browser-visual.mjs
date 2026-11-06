@@ -42,6 +42,16 @@ async function main() {
       page.on("pageerror", error => errors.push(error.message));
       await page.goto(origin, { waitUntil: "networkidle" });
       await page.locator("#messages").waitFor({ state: "visible" });
+      // Fail if the actual original artwork is missing: screenshots must
+      // represent the main-fork images, never CSS placeholders.
+      for (const asset of ["background.png", "drawui.png", "intro_bg.png", "logo.png"]) {
+        const resource = await page.request.get(origin + "/original/images/" + asset);
+        assert.equal(resource.status(), 200, "missing original sprite: " + asset);
+        assert.match(resource.headers()["content-type"], /image\/png/);
+      }
+      const pixelFont = await page.request.get(origin + "/original/nds.ttf");
+      assert.equal(pixelFont.status(), 200, "original nds.ttf missing");
+      assert.equal(await page.locator("#lobby-logo").evaluate(image => image.naturalWidth), 93);
     }
 
     const aliceFingerprint = await waitForIdentity(alice);
@@ -101,6 +111,7 @@ async function main() {
     await alice.locator("#messages .entry").nth(1).waitFor({ timeout: 15_000 });
     assert.match(await alice.locator("#messages").innerText(), /Hallo zurück!/);
 
+    assert.match(await alice.locator(".bottom-screen").evaluate(el => getComputedStyle(el).backgroundImage), /drawui\.png/);
     await screenshotSafe(alice, "pictochat-desktop");
     assert.equal(await alice.locator("#lobby").isVisible(), false);
     assert.equal(await alice.locator("#security-panel").evaluate(el=>el.open), false);
