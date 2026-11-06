@@ -1,4 +1,4 @@
-name: PictoChat browser screenshots
+name: PictoChat visual and PDF acceptance
 
 on:
   push:
@@ -60,6 +60,67 @@ jobs:
           echo 'Relay failed to start'
           cat screenshots/relay.log
           exit 1
+      - name: Validate rendered PDF pages and generate PDF preview
+        run: |
+          set -euo pipefail
+          if ! command -v pdfinfo >/dev/null || ! command -v pdftoppm >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq poppler-utils
+          fi
+          test -s screenshots/pictochat-print-demo.pdf
+          pdfinfo screenshots/pictochat-print-demo.pdf > screenshots/pdfinfo.txt
+          grep -Eq '^Pages:[[:space:]]+1
+        id: screenshot_artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pictochat-browser-screenshots-${{ github.run_id }}
+          path: |
+            server/screenshots/*.png
+            server/screenshots/*.pdf
+            server/screenshots/pdfinfo.txt
+            server/screenshots/relay.log
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Add screenshots to GitHub Actions summary
+        if: always()
+        env:
+          ARTIFACT_URL: ${{ steps.screenshot_artifacts.outputs.artifact-url }}
+        run: |
+          {
+            echo '## 🖥️ PictoChat 2.0 – Browser screenshots'
+            echo ''
+            echo '**Two real Chromium clients** communicate via the local Rust relay.'
+            echo 'The test creates an invitation, exchanges verified ephemeral fingerprints, sends encrypted German/Turkish text and a drawing, and verifies rendering.'
+            echo ''
+            echo '### Desktop and mobile snapshots'
+            echo ''
+            echo 'Screenshots are available in the GitHub Actions artifacts:'
+            echo ''
+            echo "[📷 Download both screenshots (PNG)](${ARTIFACT_URL})"
+            echo ''
+            echo 'Files: `pictochat-original-stage.png`, `pictochat-original-lobby.png`, `pictochat-desktop.png`, `pictochat-mobile.png`, `pictochat-print-demo.pdf` and `pictochat-print-preview.png`'
+            echo ''
+            echo 'The cropped stage images show the 256×384 original sprite geometry; Playwright enforces the original PIXI hitbox coordinates.'
+            echo 'The PDF is checked with pdfinfo, pdftotext, and pdftoppm: A4, content, one page, no exposed access controls and a rendered PNG preview.'
+            echo 'All visible chat content is synthetic; credentials are redacted before capture.'
+            echo ''
+            echo '**Security notice:** this is still the experimental V2 browser client; OpenMLS is tested separately and not yet integrated into the browser.'
+          } >> "$GITHUB_STEP_SUMMARY"
+ screenshots/pdfinfo.txt
+          grep -Eq '^Page size:[[:space:]]+59[0-9].*84[0-9].*pts' screenshots/pdfinfo.txt
+          pdftotext -layout screenshots/pictochat-print-demo.pdf screenshots/print-text.txt
+          grep -q 'Merhaba' screenshots/print-text.txt
+          grep -q 'Hallo zurück' screenshots/print-text.txt
+          grep -q 'PictoChat' screenshots/print-text.txt
+          if grep -qE '(Einladungstoken|Separater Chat-Schlüssel|trusted-fingerprints|auth\.)' screenshots/print-text.txt; then
+            echo 'Sensitive session controls were rendered into PDF!' >&2
+            exit 1
+          fi
+          pdftoppm -f 1 -l 1 -r 120 -singlefile -png \
+            screenshots/pictochat-print-demo.pdf screenshots/pictochat-print-preview
+          test -s screenshots/pictochat-print-preview.png
+          echo 'PDF validation passed: A4, 1 page, text extraction, no session controls, rendered PNG.'
       - name: Upload desktop and mobile browser screenshots
         id: screenshot_artifacts
         if: always()
