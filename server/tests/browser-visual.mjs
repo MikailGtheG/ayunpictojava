@@ -84,7 +84,7 @@ async function main() {
     await alice.mouse.move(bounds.x + 140, bounds.y + 80, { steps: 15 });
     await alice.mouse.up();
 
-    await alice.getByRole("button", { name: "Nachricht senden" }).click();
+    await alice.locator("#send").click();
     await bob.locator("#messages .entry").first().waitFor({ timeout: 15_000 });
     const bobText = await bob.locator("#messages").innerText();
     assert.match(bobText, /Merhaba!/);
@@ -95,16 +95,18 @@ async function main() {
 
     // Bob replies; the upper display should show a real two-way chat.
     await bob.locator("#text").fill("Hallo zurück! 🎨 Çizim angekommen.");
-    await bob.getByRole("button", { name: "Nachricht senden" }).click();
+    await bob.locator("#send").click();
     await alice.locator("#messages .entry").nth(1).waitFor({ timeout: 15_000 });
     assert.match(await alice.locator("#messages").innerText(), /Hallo zurück!/);
 
     await screenshotSafe(alice, "pictochat-desktop");
+    assert.equal(await alice.locator("#lobby").isVisible(), false);
+    assert.equal(await alice.locator("#security-panel").evaluate(el=>el.open), false);
 
     // Validate the same print stylesheet used by the user-triggered PDF action.
     await alice.emulateMedia({ media: "print" });
     assert.equal(await alice.locator("#messages .entry").count(), 2);
-    assert.equal(await alice.locator(".editor").isVisible(), false);
+    assert.equal(await alice.locator(".bottom-screen").isVisible(), false);
     assert.equal(await alice.locator("#messages .entry img").count(), 1);
     await alice.pdf({
       path: `${screenshots}/pictochat-print-demo.pdf`,
@@ -144,7 +146,7 @@ async function main() {
     assert.deepEqual(errors, [], "browser must not raise uncaught page errors");
 
     // Leave erases local chat messages and secrets in the active client.
-    await alice.getByRole("button", { name: "Trennen" }).click();
+    await alice.locator("#disconnect").click();
     await alice.waitForFunction(() =>
       document.querySelectorAll("#messages .entry").length === 0 &&
       document.getElementById("token").value === ""
