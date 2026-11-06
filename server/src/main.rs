@@ -78,9 +78,31 @@ fn router(state: AppState) -> Router {
     Router::new()
         .route("/", get(dev_home))
         .route("/crypto.mjs", get(crypto_module))
+        .route("/app.mjs", get(app_module))
+        .route("/session.mjs", get(session_module))
         .route("/identity.mjs", get(identity_module))
         .route("/ws/{room_id}", get(connect))
         .with_state(state)
+}
+
+async fn app_module() -> ([(axum::http::header::HeaderName, &'static str); 2], &'static str) {
+    (
+        [
+            (axum::http::header::CONTENT_TYPE, "text/javascript; charset=utf-8"),
+            (axum::http::header::CACHE_CONTROL, "no-store"),
+        ],
+        include_str!("../public/app.mjs"),
+    )
+}
+
+async fn session_module() -> ([(axum::http::header::HeaderName, &'static str); 2], &'static str) {
+    (
+        [
+            (axum::http::header::CONTENT_TYPE, "text/javascript; charset=utf-8"),
+            (axum::http::header::CACHE_CONTROL, "no-store"),
+        ],
+        include_str!("../public/session.mjs"),
+    )
 }
 
 async fn identity_module() -> ([(axum::http::header::HeaderName, &'static str); 2], &'static str) {
@@ -216,9 +238,12 @@ mod tests {
         assert!(html.contains("ÄÖÜ"));
         assert!(html.contains("EXPERIMENTELLE AES-GCM- UND P-256-SIGNATUREN"));
         assert!(html.contains("identity.mjs"));
-        assert!(html.contains("verifyMessage("));
-        assert!(html.contains("encryptPacket("));
-        assert!(html.contains("decryptPacket("));
+        assert!(html.contains("app.mjs"));
+        assert!(html.contains("session.mjs") || include_str!("../public/app.mjs").contains("session.mjs"));
+        let app = include_str!("../public/app.mjs");
+        assert!(app.contains("verifyMessage("));
+        assert!(app.contains("encryptPacket("));
+        assert!(app.contains("decryptPacket("));
         assert!(!html.contains("https://"));
         assert!(!html.contains("http://"));
         assert!(!html.contains("localStorage"));
