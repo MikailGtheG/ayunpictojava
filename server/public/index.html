@@ -83,6 +83,7 @@ footer{text-align:center;padding:15px;color:#344456;font-size:.75rem}
 <script type="module">
 import { importRoomKey, encryptPacket, decryptPacket, ReplayGuard } from "./crypto.mjs";
 import { createSessionIdentity, signMessage, verifyMessage, parseTrustedFingerprints } from "./identity.mjs";
+import { randomRoomId, sanitizeNickname, validateDraft } from "./session.mjs";
 "use strict";
 const $=id=>document.getElementById(id);
 const room=$("room"),token=$("token"),status=$("status"),messages=$("messages");
@@ -91,6 +92,13 @@ let socket=null,strokes=[],current=null,roomKey=null,replayGuard=null,sessionIde
 const MAX_BYTES=16384,MAX_POINTS=1200;
 let totalPoints=0;
 const setStatus=t=>status.textContent=t;
+room.value=randomRoomId();
+$("new-room").addEventListener("click",()=>{
+ if(socket)return;
+ room.value=randomRoomId();messages.replaceChildren();
+ setStatus("Neuer temporärer Raum erzeugt. Raum-ID und Zugangstoken getrennt teilen.");
+});
+$("nickname").value="Gast";
 async function renewIdentity(){
  if(socket)return;
  $("connect").disabled=true;
@@ -112,7 +120,7 @@ $("generate-key").addEventListener("click",()=>{
 $("show-key").addEventListener("click",()=>{
  const field=$("e2ee-key");field.type=field.type==="password"?"text":"password";
 });
-const enabled=on=>{$("send").disabled=!on;$("disconnect").disabled=!on;$("connect").disabled=on||!sessionIdentity;room.disabled=on;token.disabled=on;$("new-identity").disabled=on;$("trusted-fingerprints").disabled=on;};
+const enabled=on=>{$("send").disabled=!on;$("disconnect").disabled=!on;$("connect").disabled=on||!sessionIdentity;room.disabled=on;token.disabled=on;$("new-identity").disabled=on;$("new-room").disabled=on;$("trusted-fingerprints").disabled=on;};
 function xy(e){
  const b=canvas.getBoundingClientRect();
  return [Math.max(0,Math.min(512,Math.round((e.clientX-b.left)*512/b.width))),
@@ -137,6 +145,10 @@ canvas.addEventListener("pointermove",e=>{
 });
 for(const event of ["pointerup","pointercancel","lostpointercapture"])canvas.addEventListener(event,()=>{current=null;});
 $("clear").addEventListener("click",()=>{strokes=[];current=null;totalPoints=0;redraw();});
+$("undo").addEventListener("click",()=>{
+ const deleted=strokes.pop();if(deleted)totalPoints-=deleted.length;
+ current=null;redraw();
+});
 function render(data,who){
  const div=document.createElement("article");div.className="entry";
  const name=document.createElement("div");name.className="who";name.textContent=who;
@@ -151,15 +163,8 @@ function render(data,who){
  messages.append(div);messages.scrollTop=messages.scrollHeight;
 }
 function valid(data){
- if(!data||data.v!==1||typeof data.text!=="string"||data.text.length>2000||!Array.isArray(data.strokes)||data.strokes.length>1200)return false;
- let count=0;
- for(const stroke of data.strokes){
-  if(!Array.isArray(stroke)||stroke.length>MAX_POINTS)return false;
-  for(const p of stroke){
-   if(++count>MAX_POINTS||!Array.isArray(p)||p.length!==2||!p.every(Number.isInteger)||p[0]<0||p[0]>512||p[1]<0||p[1]>170)return false;
-  }
- }
- return true;
+ return validateDraft(data) && typeof data.nickname==="string" &&
+  sanitizeNickname(data.nickname)===data.nickname;
 }
 $("connect").addEventListener("click",async()=>{
  const id=room.value.trim(),cap=token.value.trim(),secret=$("e2ee-key").value.trim();
@@ -184,17 +189,20 @@ $("connect").addEventListener("click",async()=>{
     const signed=JSON.parse(decoder.decode(plain));
     const verified=await verifyMessage(signed,id,trustedPeers);
     if(socket!==ws)return;
-    if(valid(verified.body))render(verified.body,"Gerät "+verified.fingerprint.slice(0,12));
+    if(valid(verified.body))render(verified.body,verified.body.nickname+" · "+verified.fingerprint.slice(0,10));
   }catch{setStatus("Ungültige, manipulierte oder wiederholte Nachricht verworfen");}
  };
  ws.onerror=()=>setStatus("Verbindungsfehler oder Raumzugang abgelehnt");
- ws.onclose=()=>{if(socket===ws){socket=null;roomKey=null;replayGuard=null;trustedPeers=null;enabled(false);setStatus("Getrennt");}};
+ ws.onclose=()=>{if(socket===ws){socket=null;roomKey=null;replayGuard=null;trustedPeers=null;sessionIdentity=null;
+  messages.replaceChildren();strokes=[];current=null;totalPoints=0;redraw();
+  token.value="";$("e2ee-key").value="";$("trusted-fingerprints").value="";
+  enabled(false);setStatus("Sitzung beendet – lokale Nachrichten und Schlüssel verworfen");renewIdentity();}};
 });
 $("disconnect").addEventListener("click",()=>socket?.close());
 $("send").addEventListener("click",async()=>{
  if(!socket||socket.readyState!==WebSocket.OPEN||!roomKey)return;
  const active=socket,key=roomKey,identity=sessionIdentity;
- const data={v:1,text:$("text").value,strokes:strokes.map(s=>s.map(p=>[...p]))};
+ const data={v:1,text:$("text").value,nickname:sanitizeNickname($("nickname").value),strokes:strokes.map(s=>s.map(p=>[...p]))};
  if(!data.text.trim()&&!data.strokes.length)return;
  try {
   const signed=await signMessage(identity,room.value.trim(),data);
