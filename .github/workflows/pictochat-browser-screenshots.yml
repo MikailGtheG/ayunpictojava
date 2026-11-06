@@ -89,6 +89,21 @@ jobs:
           if grep -Eq '[[:alnum:]]' screenshots/multipage-text.txt; then exit 1; fi
           pdfimages -list screenshots/pictorust-multipage-demo.pdf > screenshots/multipage-images.txt
           grep -Eq '^ *1 +[0-9]+ +image +1024 +2080 ' screenshots/multipage-images.txt
+          # The long fixture must be a REAL two-page A4 PDF, not merely
+          # a mocked or in-memory pagination count.
+          test -s screenshots/pictorust-long-two-page.pdf
+          test -s screenshots/pictorust-long-page-1.png
+          test -s screenshots/pictorust-long-page-2.png
+          pdfinfo screenshots/pictorust-long-two-page.pdf > screenshots/long-pdfinfo.txt
+          grep -Eq 'Pages: +2' screenshots/long-pdfinfo.txt
+          grep -Eq 'Page size: +59[45][.0-9]* x 84[12][.0-9]* pts' screenshots/long-pdfinfo.txt
+          pdfimages -list screenshots/pictorust-long-two-page.pdf > screenshots/long-pdf-images.txt
+          grep -Eq '^ *1 +[0-9]+ +image +1024 +2080 ' screenshots/long-pdf-images.txt
+          grep -Eq '^ *2 +[0-9]+ +image +1024 +2080 ' screenshots/long-pdf-images.txt
+          pdftoppm -f 1 -l 2 -r 110 -png screenshots/pictorust-long-two-page.pdf screenshots/pictorust-long-print-preview
+          test -s screenshots/pictorust-long-print-preview-1.png
+          test -s screenshots/pictorust-long-print-preview-2.png
+          echo 'Verified real two-page multilingual A4 PDF with original pixel rasters.'
           echo 'Verified one full A4 chat page for 13 messages.'
           echo 'Validated high-density lossless 1024x2080 pixel-art raster on A4, no captions or overlays.'
       - name: Upload visual proofs and logs
@@ -100,6 +115,8 @@ jobs:
           path: |
             server/screenshots/*.png
             server/screenshots/*.pdf
+            server/screenshots/long-pdfinfo.txt
+            server/screenshots/long-pdf-images.txt
             server/screenshots/pdfinfo.txt
             server/screenshots/pdf-images.txt
             server/screenshots/multipage-pdfinfo.txt
@@ -116,7 +133,7 @@ jobs:
           {
             echo '## PictoRust original pixel export verification'
             echo ''
-            echo 'Download the original lobby, stage, desktop/mobile screenshots, PictoChat raster PDF and a pixel-size PNG preview:'
+            echo 'Download original lobby, stage, desktop/mobile screenshots, short and long two-page A4 PDF proofs with PNG previews:'
             echo ''
             echo "[Download screenshots and verified PDF](${ARTIFACT_URL})"
             echo ''
