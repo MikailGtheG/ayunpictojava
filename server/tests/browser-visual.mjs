@@ -159,7 +159,7 @@ async function main() {
     assert.deepEqual(errors, [], "browser must not raise uncaught page errors");
 
     // Leave erases local chat messages and secrets in the active client.
-    await alice.locator("#disconnect").click();
+    await alice.locator("#leave-room").click();
     await alice.waitForFunction(() =>
       document.querySelectorAll("#messages .entry").length === 0 &&
       document.getElementById("token").value === ""
