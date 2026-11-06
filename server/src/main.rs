@@ -133,7 +133,7 @@ async fn dev_home() -> ([(axum::http::header::HeaderName, &'static str); 5], &'s
         [
             (axum::http::header::CONTENT_TYPE, "text/html; charset=utf-8"),
             (axum::http::header::CACHE_CONTROL, "no-store"),
-            (axum::http::header::CONTENT_SECURITY_POLICY, "default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; img-src data:; connect-src ws://127.0.0.1:8787 ws://localhost:8787; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"),
+            (axum::http::header::CONTENT_SECURITY_POLICY, "default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; img-src data:; connect-src 'self' ws://127.0.0.1:8787 ws://localhost:8787; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"),
             (axum::http::header::REFERRER_POLICY, "no-referrer"),
             (axum::http::header::X_CONTENT_TYPE_OPTIONS, "nosniff"),
         ],
