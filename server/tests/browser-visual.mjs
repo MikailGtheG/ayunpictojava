@@ -54,6 +54,49 @@ async function main() {
       assert.equal(await page.locator("#lobby-logo").evaluate(image => image.naturalWidth), 93);
     }
 
+    // Pixel-accurate geometry contract from the main-fork PIXI renderer.
+    // Coordinates below are logical 256x384 DS pixels, not CSS approximations.
+    await alice.waitForFunction(() => document.querySelectorAll("#touch-keys button[data-original-hitbox]").length === 50);
+    const geometry = await alice.evaluate(() => {
+      const stage = document.getElementById("picto").getBoundingClientRect();
+      const sx = stage.width / 256, sy = stage.height / 384;
+      const get = id => {
+        const r = document.getElementById(id).getBoundingClientRect();
+        return [(r.x-stage.x)/sx, (r.y-stage.y)/sy, r.width/sx, r.height/sy];
+      };
+      const keys = Array.from(document.querySelectorAll("#touch-keys button[data-original-hitbox]"));
+      return {
+        stageAspect: stage.width / stage.height,
+        board: get("writing-board"), send: get("send"), copy: get("copy-last"),
+        clear: get("erase"), scrollUp: get("scroll-up"), scrollDown: get("scroll-down"),
+        pen: get("pen-tool"), eraser: get("eraser-tool"),
+        keyBoxes: keys.map(el => {
+          const r = el.getBoundingClientRect();
+          return [(r.x-stage.x)/sx,(r.y-stage.y)/sy,r.width/sx,r.height/sy];
+        }),
+        source: keys.map(el => el.dataset.originalHitbox.split(",").map(Number)),
+      };
+    });
+    assert.ok(Math.abs(geometry.stageAspect - 256/384) < 0.002, "DS aspect ratio must be exact");
+    for (const [name, expected] of Object.entries({
+      board:[21,207,234,84], send:[225,296,31,30],
+      copy:[225,327,31,23], clear:[225,351,31,24],
+      scrollUp:[2,194,14,14], scrollDown:[2,209,14,14],
+      pen:[2,230,14,13], eraser:[2,244,14,13],
+    })) {
+      geometry[name].forEach((value, i) =>
+        assert.ok(Math.abs(value-expected[i]) < 0.8,
+          `${name} axis ${i}: actual ${value}, expected ${expected[i]} DS pixels`)
+      );
+    }
+    for(let k=0;k<50;k++) {
+      geometry.keyBoxes[k].forEach((value,i)=>
+        assert.ok(Math.abs(value-geometry.source[k][i])<0.8,
+          `original key ${k} axis ${i}: ${value} != ${geometry.source[k][i]}`)
+      );
+    }
+    console.log("Pixel geometry passed: all 50 original keyboard hitboxes and 8 control rectangles.");
+
     const aliceFingerprint = await waitForIdentity(alice);
     const bobFingerprint = await waitForIdentity(bob);
     assert.notEqual(aliceFingerprint, bobFingerprint, "each session needs its own ephemeral keypair");
