@@ -15,3 +15,4 @@ tokio = { version = "1", features = ["full"] }
 
 [dev-dependencies]
 tokio-tungstenite = "0.28"
+serde_json = "1"
