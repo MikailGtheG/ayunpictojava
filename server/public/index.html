@@ -266,6 +266,27 @@ button:disabled{opacity:.5;cursor:default}
 }
 #writing-board.mode-text #text{pointer-events:auto}
 #writing-board.mode-pen #drawing{pointer-events:auto}
+/* CSS reconstruction of PIXI MULTIPLY lines (original box_lines sprites
+   have near-transparent RGB that is lost when used as an alpha-only mask).
+   Maintain their 16-DS-pixel spacing while the original outlined sprite remains authoritative. */
+#picto{--ds-pixel:min(2px,calc((100vw - 16px)/256))}
+#messages .entry .rule-lines,#writing-board .rule-lines{
+  position:absolute;left:1%;right:1%;top:calc(19 * var(--ds-pixel));
+  bottom:calc(2 * var(--ds-pixel));z-index:2;pointer-events:none;
+  background:repeating-linear-gradient(to bottom,
+     var(--line-color) 0,var(--line-color) var(--ds-pixel),
+     transparent var(--ds-pixel),transparent calc(16 * var(--ds-pixel)));
+}
+#messages .entry .who{
+  top:calc(4 * var(--ds-pixel));left:calc(6 * var(--ds-pixel));
+  width:calc(84 * var(--ds-pixel));height:calc(15 * var(--ds-pixel));
+  line-height:calc(12 * var(--ds-pixel));
+}
+#writing-board #draft-name{
+  top:calc(4 * var(--ds-pixel));left:calc(6 * var(--ds-pixel));
+  width:calc(84 * var(--ds-pixel));height:calc(15 * var(--ds-pixel));
+  line-height:calc(12 * var(--ds-pixel));
+}
 @media print{body{background:white}#lobby,.bottom-screen,#outside-actions,#security-panel,.warning,#top-scroll{display:none!important}#page{display:block}#picto{width:100%;height:auto;aspect-ratio:auto;box-shadow:none;border:0;background:white;overflow:visible}.top-screen,#messages{position:static;height:auto;width:auto;overflow:visible}#room-head{position:static;height:30px}#statusbar{display:none}.entry{break-inside:avoid}}
 </style>
 </head>
@@ -280,7 +301,7 @@ button:disabled{opacity:.5;cursor:default}
   <section class="bottom-screen" aria-label="Touchscreen">
     <button type="button" id="exit-internal" aria-label="Raum verlassen">EXIT</button>
     <div id="top-scroll"><button id="scroll-up" aria-label="Nach oben">▲</button><button id="scroll-down" aria-label="Nach unten">▼</button></div>
-    <div id="writing-board" class="mode-pen"><span id="draft-name" aria-hidden="true">Gast</span>
+    <div id="writing-board" class="mode-pen"><span class="rule-lines" aria-hidden="true"></span><span id="draft-name" aria-hidden="true">Gast</span>
       <textarea id="text" maxlength="2000" placeholder="ÄÖÜ ß ğışç 😊" aria-label="Text eingeben"></textarea>
       <canvas id="drawing" width="512" height="170" aria-label="Zeichenfeld"></canvas>
     </div>
