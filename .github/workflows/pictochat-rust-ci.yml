@@ -6,6 +6,7 @@ on:
       - development/pictochat-modernization
     paths:
       - 'server/**'
+      - 'frontend/**'
       - '.github/workflows/pictochat-rust-ci.yml'
   pull_request:
     paths:
@@ -42,7 +43,11 @@ jobs:
           node --version
           node --check public/crypto.mjs
           node --check public/identity.mjs
-          node --test tests/crypto.test.mjs tests/identity.test.mjs tests/ui.test.mjs
+          node --test tests/crypto.test.mjs tests/identity.test.mjs tests/ui.test.mjs tests/session.test.mjs
+      - name: TypeScript frontend domain compile
+        run: |
+          npm install --no-save --no-package-lock --ignore-scripts --prefix ../frontend typescript@5.9.3
+          ../frontend/node_modules/.bin/tsc --project ../frontend/tsconfig.json
       - name: End-to-end encrypted WebSocket test
         env:
           PICTOCHAT_RELAY_SECRET: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
