@@ -37,3 +37,20 @@ jobs:
         run: cargo test --all-targets -- --nocapture
       - name: Check MLS lab with Clippy
         run: cargo clippy --all-targets -- -D warnings
+      - name: Test OpenMLS over actual Rust WebSockets
+        env:
+          PICTOCHAT_RELAY_SECRET: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+        run: |
+          set -euo pipefail
+          cargo run --quiet --manifest-path ../server/Cargo.toml &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          for i in $(seq 1 120); do
+            if curl --fail --silent http://127.0.0.1:8787/ >/dev/null; then
+              cargo test --test websocket -- --ignored --nocapture
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Rust relay failed to start"
+          exit 1
