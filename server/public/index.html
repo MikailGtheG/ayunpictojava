@@ -84,6 +84,22 @@ button:disabled{opacity:.5;cursor:default}
 #outside-actions button{padding:5px}
 .warning{width:min(512px,calc(100vw - 16px));font:11px/1.3 nds,monospace;text-align:left;color:#54526b;background:#f4f1d9;border:1px solid #b7b393;padding:5px}
 @media(max-width:540px){#page{padding-top:4px;gap:5px}#picto{width:min(100vw - 8px,512px)}#room-head{font-size:10px}.entry .body{font-size:11px}#touch-keys button{font-size:10px}#security-panel{width:calc(100vw - 8px)}}
+/* PIXI source of truth: connection (1,1), room badge (1,175),
+   scroll/message surface starts at x=21 and ends at y=189. */
+#room-head{position:absolute;left:0;top:0;width:100%;height:100%;display:block;pointer-events:none}
+#room-letter{position:absolute;left:.390625%;top:91.1458333333%;width:6.25%;height:8.3333333333%;background:transparent;border:0;padding:0;border-radius:0;image-rendering:pixelated}
+#connection-icon{position:absolute;left:.390625%;top:.5208333333%;width:6.25%;height:8.3333333333%;image-rendering:pixelated}
+#member-label,.signal{display:none}
+#messages{position:absolute;left:8.203125%;top:0;width:91.40625%;height:98.4375%;margin:0;padding:0;background:transparent;overflow-x:hidden;overflow-y:auto;scrollbar-width:none}
+#messages::-webkit-scrollbar{width:0}
+#messages .entry{border:0;margin:0 0 2px;padding:0;min-height:22px;background:transparent;position:relative}
+#messages .entry .who{margin:0;padding:0 4px;font:11px nds,monospace;background:transparent;border:0;color:#1d3a70}
+#messages .entry .body{font:11px/1.25 nds,monospace;white-space:pre-wrap;padding:1px 3px;max-width:100%}
+#exit-internal{position:absolute;left:95.703125%;top:.5208333333%;width:3.90625%;height:5.2083333333%;margin:0;padding:0;border:0;background:transparent;color:transparent;font-size:0;cursor:pointer;z-index:3}
+#outside-actions{display:none}
+#security-panel:not([open])+#outside-actions{display:none}
+#international-keys.visible button{background:rgba(251,251,255,.94);border:1px solid #9aa0b4;color:#2d2e41;font:10px nds,monospace}
+@media(max-width:540px){#messages .entry .body{font-size:11px}}
 /* Sprite-anchored geometry: ORIGINAL 256x384 renderer coordinates.
    All percentages below come from src/main/resources/www/main.js. */
 #picto{width:min(512px,calc(100vw - 16px));aspect-ratio:256/384}
@@ -125,11 +141,12 @@ button:disabled{opacity:.5;cursor:default}
 <div id="page">
 <div id="picto" aria-label="Original PictoChat inspired 256 by 384 pixel interface">
   <section class="top-screen" aria-label="Chat-Bildschirm">
-    <div id="room-head"><span class="room-tab" id="room-letter">Chat Room A</span><span id="member-label">Gäste: 0</span><span class="signal">▂▄▆</span></div>
+    <div id="room-head"><img id="connection-icon" src="/original/images/connection.png" alt="Signalstärke"><img id="room-letter" src="/original/images/letter_room_a.png" alt="Chat Room A"><span id="member-label" aria-label="Raumstatus">Gäste: 0</span></div>
 
     <section id="messages" aria-label="Nachrichten" aria-live="polite"></section>
   </section>
   <section class="bottom-screen" aria-label="Touchscreen">
+    <button type="button" id="exit-internal" aria-label="Raum verlassen">EXIT</button>
     <div id="top-scroll"><button id="scroll-up" aria-label="Nach oben">▲</button><button id="scroll-down" aria-label="Nach unten">▼</button></div>
     <div id="writing-board" class="mode-pen">
       <textarea id="text" maxlength="2000" placeholder="ÄÖÜ ß ğışç 😊" aria-label="Text eingeben"></textarea>
@@ -274,13 +291,8 @@ button:disabled{opacity:.5;cursor:default}
     <div><label>Eigener temporärer Geräte-Fingerprint</label><output id="own-fingerprint">Wird erzeugt …</output><button id="new-identity" type="button">Neue Sitzungsidentität</button></div>
     <div><label for="trusted-fingerprints">Unabhängig verifizierte Fingerprints anderer Teilnehmer</label><input id="trusted-fingerprints" autocomplete="off" spellcheck="false"></div>
   </section>
+  <div class="controls"><button id="pdf" type="button">PDF exportieren</button><button id="clear-chat" type="button">Chat löschen</button><button id="leave-room" type="button">EXIT</button><button id="undo-outside" type="button">Rückgängig</button></div>
 </details>
-<div id="outside-actions">
-  <button id="pdf" type="button">PDF exportieren</button>
-  <button id="clear-chat" type="button">Chat löschen</button>
-  <button id="leave-room" type="button">EXIT</button>
-  <button id="undo-outside" type="button">Rückgängig</button>
-</div>
 <div class="warning">EXPERIMENTELLE AES-GCM- UND P-256-SIGNATUREN · Originalgrafiken aus dem Haupt-Fork. Keine MLS-Integration im Browser, keine Forward Secrecy. Nicht für vertrauliche Gespräche freigegeben.</div>
 </div>
 <script type="module" src="./app.mjs"></script>
