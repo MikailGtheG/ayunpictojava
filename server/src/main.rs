@@ -338,7 +338,7 @@ mod tests {
         let (mut socket, _) = connect_async(request).await.unwrap();
         let ended = timeout(Duration::from_secs(6), socket.next()).await
             .expect("expired temporary room must close active WebSocket");
-        assert!(matches!(ended, None | Some(Ok(Message::Close(_))) | Some(Err(_))));
+        assert!(matches!(ended, None | Some(Ok(tokio_tungstenite::tungstenite::Message::Close(_))) | Some(Err(_))));
         server.abort();
     }
 
