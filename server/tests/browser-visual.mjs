@@ -255,7 +255,7 @@ async function main() {
       url:img.src, naturalWidth:img.naturalWidth, naturalHeight:img.naturalHeight, complete:img.complete
     }));
     assert.equal(pngData.naturalWidth,256);
-    assert.equal(pngData.naturalHeight,192);
+    assert.equal(pngData.naturalHeight,520);
     assert.ok(pngData.complete && pngData.url.startsWith("data:image/png;base64,"));
     await writeFile(`${screenshots}/pictorust-export-page-1.png`,
       Buffer.from(pngData.url.split(",")[1],"base64"));
@@ -268,8 +268,8 @@ async function main() {
       const r=img.getBoundingClientRect();
       return {width:r.width,height:r.height};
     });
-    assert.equal(printSize.width,256);
-    assert.equal(printSize.height,192);
+    assert.equal(printSize.width,512);
+    assert.equal(printSize.height,1040);
     await alice.pdf({
       path:`${screenshots}/pictochat-print-demo.pdf`,
       printBackground:true,
@@ -292,11 +292,10 @@ async function main() {
         validPng:pages.every(p=>p.startsWith("data:image/png;base64,"))
       };
     });
-    assert.equal(pagesInMemory.count,4,"13 short messages must split into four original-screen pages");
-    assert.equal(pagesInMemory.unique,4,"separate pages must not duplicate the same image");
+    assert.equal(pagesInMemory.count,1,"13 short messages must fit on one continuous A4 chat sheet");
+    assert.equal(pagesInMemory.unique,1,"continuous A4 print should contain one raster image");
     assert.equal(pagesInMemory.validPng,true);
-    // Exercise actual PDF pagination: FOUR separate original 256x192 screens,
-    // with zero A4 cards or extra documents.
+    // Exercise actual PDF pagination: one A4 chat strip for a short conversation.
     await alice.evaluate(async () => {
       const {preparePictoRustPrint} = await import("./pictorust-export.mjs");
       const demo = Array.from({length:13},(_,i)=>({
@@ -310,6 +309,13 @@ async function main() {
       printBackground:true,preferCSSPageSize:true,displayHeaderFooter:false,scale:1
     });
     await alice.emulateMedia({media:"screen"});
+    // Verify a genuinely long conversation spans exactly two physical A4 sheets.
+    const longPageCount=await alice.evaluate(async()=>{
+      const {renderPictoRustPages}=await import("./pictorust-export.mjs");
+      const entries=Array.from({length:23},(_,i)=>({nickname:"User",text:"Line "+i,strokes:[]}));
+      return (await renderPictoRustPages(entries,"A")).length;
+    });
+    assert.equal(longPageCount,2,"23 short messages need two A4 sheets, never 6 DS screens");
     // The technical settings panel is still open from the first button test.
     // Refresh the live page, then close the panel once before mobile checks.
     await alice.locator("#pdf").click();
