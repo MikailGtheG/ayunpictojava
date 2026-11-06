@@ -19,6 +19,19 @@ The same test crate now has **two separate integration tiers**:
 
 Run `cargo test` in `mls-lab/`. For the live WebSocket integration, start the server with `PICTOCHAT_RELAY_SECRET` and run `cargo test --test websocket -- --ignored` in the lab. Only use local, non-sensitive development data.
 
+## Reusable endpoint-side native client API (new)
+
+`src/client.rs` now provides a reusable **volatile Rust MLS client** that owns its OpenMLS crypto provider and signing keys. It implements group creation, KeyPackage generation, adding a member, Welcome processing, application encryption and authentication, Commit merging, epoch inspection, and removing members. Its `Incoming` result distinguishes application messages, membership changes and local removal. Framing helpers enforce v3 kind and size rules before TLS deserialization.
+
+`tests/client_api.rs` exercises three independent clients, sends multilingual text, adds and removes members, verifies new-epoch encryption still works for allowed peers, and rejects stale/forged-kind/replayed control frames. For a runnable demonstration, execute:
+
+```sh
+cd mls-lab
+cargo run --example three_devices
+```
+
+GitHub Actions runs this example as well as the unit, integration, Clippy and live WebSocket tests. **This is not yet a user-facing browser or production CLI**: keys and identities are ephemeral, methods that cannot recover in a test may still panic, and there is no durable state, authentication directory, certified identity lifecycle, or automatic offline recovery.
+
 ## Separation and security limits
 
 **No changes to the current browser's cryptography have been made by this MLS laboratory.** The browser still uses experimental AES-256-GCM with an independently shared key plus ephemeral P-256 signatures; it does **not** negotiate MLS epochs. The relay now **also** accepts the opaque MLS transport framing v3, while leaving browser protocol v2 untouched. It does not parse or validate OpenMLS protocol contents. This is a transport test, not a deployed browser MLS client.
