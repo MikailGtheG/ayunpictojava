@@ -3,6 +3,8 @@
 //! automatic key distribution, forward secrecy, or TLS yet.
 use std::{net::SocketAddr, sync::Arc, time::{Duration, Instant, SystemTime, UNIX_EPOCH}};
 use rand::{rngs::OsRng, RngCore};
+use rust_embed::RustEmbed;
+use axum::{body::Body, response::Response};
 use axum::{
     extract::{
         ws::{Message, WebSocket, WebSocketUpgrade},
@@ -76,9 +78,45 @@ async fn main() -> std::io::Result<()> {
     axum::serve(listener, app).await
 }
 
+// Serve only the original static Nintendo DS artwork, never the legacy
+// application's JavaScript or HTML (which are tied to the old plaintext API).
+#[derive(RustEmbed)]
+#[folder = "../src/main/resources/www/"]
+struct OriginalPictoAssets;
+
+async fn original_picto_image(Path(name): Path<String>) -> Result<Response, StatusCode> {
+    if name.contains('/') || !name.ends_with(".png")
+        || !name.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_' || b == b'.')
+    {
+        return Err(StatusCode::NOT_FOUND);
+    }
+    let key = format!("images/{name}");
+    let asset = OriginalPictoAssets::get(&key).ok_or(StatusCode::NOT_FOUND)?;
+    Response::builder()
+        .status(StatusCode::OK)
+        .header(axum::http::header::CONTENT_TYPE, "image/png")
+        .header(axum::http::header::CACHE_CONTROL, "public, max-age=86400")
+        .header(axum::http::header::X_CONTENT_TYPE_OPTIONS, "nosniff")
+        .body(Body::from(asset.data.into_owned()))
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
+}
+
+async fn original_picto_font() -> Result<Response, StatusCode> {
+    let asset = OriginalPictoAssets::get("nds.ttf").ok_or(StatusCode::NOT_FOUND)?;
+    Response::builder()
+        .status(StatusCode::OK)
+        .header(axum::http::header::CONTENT_TYPE, "font/ttf")
+        .header(axum::http::header::CACHE_CONTROL, "public, max-age=86400")
+        .header(axum::http::header::X_CONTENT_TYPE_OPTIONS, "nosniff")
+        .body(Body::from(asset.data.into_owned()))
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
+}
+
 fn router(state: AppState) -> Router {
     Router::new()
         .route("/", get(dev_home))
+        .route("/original/images/{name}", get(original_picto_image))
+        .route("/original/nds.ttf", get(original_picto_font))
         .route("/crypto.mjs", get(crypto_module))
         .route("/app.mjs", get(app_module))
         .route("/session.mjs", get(session_module))
@@ -133,7 +171,7 @@ async fn dev_home() -> ([(axum::http::header::HeaderName, &'static str); 5], &'s
         [
             (axum::http::header::CONTENT_TYPE, "text/html; charset=utf-8"),
             (axum::http::header::CACHE_CONTROL, "no-store"),
-            (axum::http::header::CONTENT_SECURITY_POLICY, "default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; img-src data:; connect-src 'self' ws://127.0.0.1:8787 ws://localhost:8787; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"),
+            (axum::http::header::CONTENT_SECURITY_POLICY, "default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' ws://127.0.0.1:8787 ws://localhost:8787; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"),
             (axum::http::header::REFERRER_POLICY, "no-referrer"),
             (axum::http::header::X_CONTENT_TYPE_OPTIONS, "nosniff"),
         ],
