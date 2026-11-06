@@ -70,7 +70,7 @@ let loaderFunc = function () {
     }, {
         scaleMode: PIXI.SCALE_MODES.NEAREST,
         mipmap: PIXI.MIPMAP_MODES.ON,
-        chars: " 1234567890-=qwertyuiopasdfghjklzxcvbnm,./;’[]!@#$%^&*()_+QWERTYUIOPASDFGHJKLZXCVBNM<>?:~{}àáâäèéêëìíîïòóôöœùúûüçñßÀÁÂÄÈÉÊËÌÍÎÏÒÓÔÖŒÙÚÛÜÇÑ¡¿€¢£″'⁓~+×÷→←↑↓「」“”()<>{}•♨〒♭♪±\\°|／＼∞∴…™©®☸☹☺☻☼☁☂☃✉☎☄☰☱☲☳☴☵✜♠♦♥♣☶☷✫✲◇□△▽◎➔➕➖➗✬✱◆■▲▼✕あかさたなはまやらわいきしちにひみゆりをうくすつぬふむよるんえけせてねへめ！れ、おこそとのほも？ろ。－がざだばぎじぢびぐずづぶげぜでべごぞどぼぱぴぷぺぽぁゃゎぃゅぅっょぇぉアカサタナハマヤラワイキシチニヒミユリヲウクスツヌフムヨルンエケセテネヘメレオコソトノホモロガザダバギジヂビヴグズヅブゲゼデベゴゾドボパピプペポァヵャヮィュゥッョェヶォ",
+        chars: "ğĞıİşŞ 1234567890-=qwertyuiopasdfghjklzxcvbnm,./;’[]!@#$%^&*()_+QWERTYUIOPASDFGHJKLZXCVBNM<>?:~{}àáâäèéêëìíîïòóôöœùúûüçñßÀÁÂÄÈÉÊËÌÍÎÏÒÓÔÖŒÙÚÛÜÇÑ¡¿€¢£″'⁓~+×÷→←↑↓「」“”()<>{}•♨〒♭♪±\\°|／＼∞∴…™©®☸☹☺☻☼☁☂☃✉☎☄☰☱☲☳☴☵✜♠♦♥♣☶☷✫✲◇□△▽◎➔➕➖➗✬✱◆■▲▼✕あかさたなはまやらわいきしちにひみゆりをうくすつぬふむよるんえけせてねへめ！れ、おこそとのほも？ろ。－がざだばぎじぢびぐずづぶげぜでべごぞどぼぱぴぷぺぽぁゃゎぃゅぅっょぇぉアカサタナハマヤラワイキシチニヒミユリヲウクスツヌフムヨルンエケセテネヘメレオコソトノホモロガザダバギジヂビヴグズヅブゲゼデベゴゾドボパピプペポァヵャヮィュゥッョェヶォ",
         textureWidth: 2048,
         textureHeight: 2048,
         resolution: window.devicePixelRatio * SCALE
@@ -158,7 +158,7 @@ loaderFunc = (loader, resources) => {
     topyElem.onpaste = function (e) {
         if (!joinedRoom) return;
         e.preventDefault();
-        let chars = (e.clipboardData || window.clipboardData).getData("text").split("");
+        let chars = Array.from((e.clipboardData || window.clipboardData).getData("text"));
         for (let i = 0; i < chars.length; i++) {
             if (chars[i] === "\n") {
                 addCharacterDirect("ENTER");
@@ -207,7 +207,7 @@ loaderFunc = (loader, resources) => {
         if (e.ctrlKey) return;
         if (!joinedRoom) return;
         const key = e.key.replace("Backspace", "BACKSPACE").replace("Enter", "ENTER");
-        if (key !== "Shift" && key !== "CapsLock" && (keys_NORMAL.includes(key) || keys_CAPS.includes(key) || keys_SHIFT.includes(key))) addCharacterDirect(key);
+        if (key !== "Shift" && key !== "CapsLock" && (key === "BACKSPACE" || (Array.from(key).length === 1 && !e.altKey && !e.metaKey))) addCharacterDirect(key);
         //If shift is currently helt down, and the keyboard mode is the US character set
         if (key === "Shift")
         {
@@ -280,7 +280,7 @@ loaderFunc = (loader, resources) => {
             if (e.inputType === "deleteContentBackward") return addCharacterDirect("BACKSPACE");
             if (e.inputType === "insertLineBreak") return addCharacterDirect("ENTER");
             if (!e.data) return;
-            let chars = e.data.split("");
+            let chars = Array.from(e.data);
             for (let i = 0; i < chars.length; i++) {
                 if (chars[i] === "\n") {
                     addCharacterDirect("ENTER");

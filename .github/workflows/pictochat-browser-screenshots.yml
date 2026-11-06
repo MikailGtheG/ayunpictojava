@@ -1,0 +1,141 @@
+name: PictoRust original pixel PDF and browser
+on:
+  push:
+    branches:
+      - development/pictochat-modernization
+    paths:
+      - 'server/**'
+      - 'frontend/**'
+      - '.github/workflows/pictochat-browser-screenshots.yml'
+  pull_request:
+    paths:
+      - 'server/**'
+      - 'frontend/**'
+      - '.github/workflows/pictochat-browser-screenshots.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pictochat-visual-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  chromium:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: server
+      - name: Install Chromium
+        run: |
+          npm install --no-save --no-package-lock --ignore-scripts playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Build local Rust relay
+        run: cargo build --bin pictochat-relay
+      - name: Test browser and generate screenshots and PDF
+        env:
+          PICTOCHAT_RELAY_SECRET: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+        run: |
+          set -euo pipefail
+          mkdir -p screenshots
+          target/debug/pictochat-relay > screenshots/relay.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          for i in $(seq 1 50); do
+            if curl --fail --silent http://127.0.0.1:8787/ >/dev/null; then
+              node tests/browser-visual.mjs
+              exit 0
+            fi
+            sleep 1
+          done
+          cat screenshots/relay.log
+          exit 1
+      - name: Verify pixel-exact PDF and render an A4-size preview
+        run: |
+          set -euo pipefail
+          if ! command -v pdfinfo >/dev/null || ! command -v pdftoppm >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq poppler-utils
+          fi
+          test -s screenshots/pictochat-print-demo.pdf
+          test -s screenshots/pictorust-export-page-1.png
+          pdfinfo screenshots/pictochat-print-demo.pdf > screenshots/pdfinfo.txt
+          grep -Eq 'Pages: +1' screenshots/pdfinfo.txt
+          grep -Eq 'Page size: +59[45][.0-9]* x 84[12][.0-9]* pts' screenshots/pdfinfo.txt
+          # There must be no notes, captions, metadata labels or selectable document text:
+          # all visual content is ONE rasterized original PictoChat screen.
+          pdftotext -layout screenshots/pictochat-print-demo.pdf screenshots/print-text.txt
+          if grep -Eq '[[:alnum:]]' screenshots/print-text.txt; then
+            echo 'Unexpected non-PictoChat document text embedded in PDF' >&2
+            exit 1
+          fi
+          pdfimages -list screenshots/pictochat-print-demo.pdf > screenshots/pdf-images.txt
+          grep -Eq '^ *1 +0 +image +1024 +2080 ' screenshots/pdf-images.txt
+          pdftoppm -f 1 -l 1 -r 96 -singlefile -png screenshots/pictochat-print-demo.pdf screenshots/pictochat-print-preview
+          test -s screenshots/pictochat-print-preview.png
+          test -s screenshots/pictorust-multipage-demo.pdf
+          pdfinfo screenshots/pictorust-multipage-demo.pdf > screenshots/multipage-pdfinfo.txt
+          grep -Eq 'Pages: +1' screenshots/multipage-pdfinfo.txt
+          grep -Eq 'Page size: +59[45][.0-9]* x 84[12][.0-9]* pts' screenshots/multipage-pdfinfo.txt
+          pdftotext screenshots/pictorust-multipage-demo.pdf screenshots/multipage-text.txt
+          if grep -Eq '[[:alnum:]]' screenshots/multipage-text.txt; then exit 1; fi
+          pdfimages -list screenshots/pictorust-multipage-demo.pdf > screenshots/multipage-images.txt
+          grep -Eq '^ *1 +[0-9]+ +image +1024 +2080 ' screenshots/multipage-images.txt
+          # The long fixture must be a REAL two-page A4 PDF, not merely
+          # a mocked or in-memory pagination count.
+          test -s screenshots/pictorust-long-two-page.pdf
+          test -s screenshots/pictorust-long-page-1.png
+          test -s screenshots/pictorust-long-page-2.png
+          pdfinfo screenshots/pictorust-long-two-page.pdf > screenshots/long-pdfinfo.txt
+          grep -Eq 'Pages: +2' screenshots/long-pdfinfo.txt
+          grep -Eq 'Page size: +59[45][.0-9]* x 84[12][.0-9]* pts' screenshots/long-pdfinfo.txt
+          pdfimages -list screenshots/pictorust-long-two-page.pdf > screenshots/long-pdf-images.txt
+          grep -Eq '^ *1 +[0-9]+ +image +1024 +2080 ' screenshots/long-pdf-images.txt
+          grep -Eq '^ *2 +[0-9]+ +image +1024 +2080 ' screenshots/long-pdf-images.txt
+          pdftoppm -f 1 -l 2 -r 110 -png screenshots/pictorust-long-two-page.pdf screenshots/pictorust-long-print-preview
+          test -s screenshots/pictorust-long-print-preview-1.png
+          test -s screenshots/pictorust-long-print-preview-2.png
+          echo 'Verified real two-page multilingual A4 PDF with original pixel rasters.'
+          echo 'Verified one full A4 chat page for 13 messages.'
+          echo 'Validated high-density lossless 1024x2080 pixel-art raster on A4, no captions or overlays.'
+      - name: Upload visual proofs and logs
+        if: always()
+        id: artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pictorust-pixel-export-${{ github.run_id }}
+          path: |
+            server/screenshots/*.png
+            server/screenshots/*.pdf
+            server/screenshots/long-pdfinfo.txt
+            server/screenshots/long-pdf-images.txt
+            server/screenshots/pdfinfo.txt
+            server/screenshots/pdf-images.txt
+            server/screenshots/multipage-pdfinfo.txt
+            server/screenshots/multipage-images.txt
+            server/screenshots/print-text.txt
+            server/screenshots/relay.log
+          retention-days: 14
+          if-no-files-found: warn
+      - name: Publish review links
+        if: always()
+        env:
+          ARTIFACT_URL: ${{ steps.artifact.outputs.artifact-url }}
+        run: |
+          {
+            echo '## PictoRust original pixel export verification'
+            echo ''
+            echo 'Download original lobby, stage, desktop/mobile screenshots, short and long two-page A4 PDF proofs with PNG previews:'
+            echo ''
+            echo "[Download screenshots and verified PDF](${ARTIFACT_URL})"
+            echo ''
+            echo 'The PDF contains only continuous original-pixel chat strips on A4 pages, without headings, notes, account credentials or A4 chat cards.'
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,67 @@
+name: PictoChat Rust relay CI
+
+on:
+  push:
+    branches:
+      - development/pictochat-modernization
+    paths:
+      - 'server/**'
+      - 'frontend/**'
+      - '.github/workflows/pictochat-rust-ci.yml'
+  pull_request:
+    paths:
+      - 'server/**'
+      - '.github/workflows/pictochat-rust-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  rust:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: server
+      - name: Apply rustfmt in CI workspace
+        run: cargo fmt --all
+      - name: Test
+        run: cargo test
+      - name: Clippy
+        run: cargo clippy --all-targets -- -D warnings
+      - name: Browser crypto and UI tests
+        run: |
+          node --version
+          node --check public/crypto.mjs
+          node --check public/identity.mjs
+          node --test tests/crypto.test.mjs tests/identity.test.mjs tests/ui.test.mjs tests/session.test.mjs
+      - name: TypeScript frontend domain compile
+        run: |
+          npm install --no-save --no-package-lock --ignore-scripts --prefix ../frontend typescript@5.9.3
+          ../frontend/node_modules/.bin/tsc --project ../frontend/tsconfig.json
+      - name: End-to-end encrypted WebSocket test
+        env:
+          PICTOCHAT_RELAY_SECRET: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+        run: |
+          set -euo pipefail
+          cargo run --quiet &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          for i in $(seq 1 60); do
+            if curl --fail --silent http://127.0.0.1:8787/ >/dev/null; then
+              node --test tests/e2e-relay.test.mjs
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Rust development relay did not start"
+          exit 1

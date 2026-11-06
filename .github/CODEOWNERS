@@ -1,0 +1,3 @@
+# PictoRust changes require review by the fork maintainer.
+# Enforce this with GitHub branch protection; CODEOWNERS alone is not a permission boundary.
+* @MikailGtheG

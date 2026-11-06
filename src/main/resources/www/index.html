@@ -24,7 +24,6 @@
     <meta property="twitter:title" content="PictoChat Online, by ayunami2000."/>
     <meta property="twitter:description" content="PictoChat web app with a server written in Java! Source: https://github.com/ayunami2000/ayunpictojava"/>
     <meta name="twitter:image" content="welcome.png"/>
-    <script src="https://js.hcaptcha.com/1/api.js" async defer></script>
     <script src="fontfaceobserver.js"></script>
     <script src="howler.min.js"></script>
     <script src="pixi.min.js"></script>
@@ -219,8 +218,8 @@
     <div id="intro">
         <img src="images/intro_bg.png" id="intro_bg"/>
         <div id="main-settings">
-            <div id="captcha" style="transform: scale(calc(91 / 300)); height: 65px;"
-                 class="h-captcha" data-theme="light" data-retry="never"
+            <div id="captcha" style="display: none;"
+                 data-theme="light" data-retry="never"
                  data-sitekey="49043ad8-6b2d-4f6c-bfa5-a8c9f235e048" data-callback="setVerificationToken"
                  data-error-callback="setVerificationToken"></div>
             <img src="images/logo_dc.png" id="logo" onclick="sounds.error.play()" title="Connecting... Please wait!" alt="Connect to PictoChat"/>
@@ -321,7 +320,7 @@
     document.getElementById("name_box").value = localStorage.getItem("username");
 
     function fixUserbox(object) {
-        object.value = object.value.replace(/[^\w\s]/gi, '');
+        object.value = object.value.replace(/[^\p{L}\p{M}\p{N}_ ]/gu, '');
     }
 
     let token = true; // set this to true if no captcha
@@ -338,7 +337,7 @@
         if (authed) return;
         const color = pickr.getColor().toHEXA().toString().replace("#", "0x");
         playerData.name = document.getElementById("name_box").value;
-        playerData.name = playerData.name.replace(/[^\w\s]/gi, '');
+        playerData.name = playerData.name.replace(/[^\p{L}\p{M}\p{N}_ ]/gu, '');
         playerData.color = parseInt(color, 16);
         const obj = {type: 'cl_verifyName', player: playerData, token: token};
         websocket.send(JSON.stringify(obj));

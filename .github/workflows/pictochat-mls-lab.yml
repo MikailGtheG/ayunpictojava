@@ -1,0 +1,58 @@
+name: PictoChat MLS security lab
+
+on:
+  push:
+    branches:
+      - development/pictochat-modernization
+    paths:
+      - 'mls-lab/**'
+      - '.github/workflows/pictochat-mls-lab.yml'
+  pull_request:
+    paths:
+      - 'mls-lab/**'
+      - '.github/workflows/pictochat-mls-lab.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  mls-lab:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: mls-lab
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: mls-lab
+      - name: Format in ephemeral workspace
+        run: cargo fmt --all
+      - name: Test real OpenMLS membership and encryption
+        run: cargo test --all-targets -- --nocapture
+      - name: Check MLS lab with Clippy
+        run: cargo clippy --all-targets -- -D warnings
+      - name: Exercise standalone three-device MLS client
+        run: cargo run --example three_devices
+      - name: Test OpenMLS over actual Rust WebSockets
+        env:
+          PICTOCHAT_RELAY_SECRET: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+        run: |
+          set -euo pipefail
+          cargo run --quiet --manifest-path ../server/Cargo.toml &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          for i in $(seq 1 120); do
+            if curl --fail --silent http://127.0.0.1:8787/ >/dev/null; then
+              cargo test --test websocket -- --ignored --nocapture
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Rust relay failed to start"
+          exit 1

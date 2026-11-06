@@ -1085,9 +1085,8 @@ public class Main {
 						}
 					}
 					player = jsonObject.getAsJsonObject("player");
-					String name = player.remove("name").getAsString().replaceAll("[^A-Za-z0-9_]", "");
+					String name = UsernameSanitizer.sanitize(player.remove("name").getAsString());
 					if (name.isEmpty()) name = String.valueOf(ThreadLocalRandom.current().nextInt(0, 1000000));
-					if (name.length() > 10) name = name.substring(0, 10);
 					player.addProperty("name", name);
 					int color = player.remove("color").getAsInt();
 					if (color < 0 || color > 16777215) color = 14013909;

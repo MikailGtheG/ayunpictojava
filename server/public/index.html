@@ -1,0 +1,518 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PictoRust – PictoChat pixel messenger</title>
+<style>
+@font-face{font-family:nds;src:url("/original/nds.ttf") format("truetype");font-display:swap}
+:root{font-family:nds,"Courier New",monospace;color:#171717;background:#eaeaea}
+*{box-sizing:border-box}
+body{margin:0;background:#e8e8e8 url("/original/images/body-bg.png") repeat;min-height:100vh;text-align:center}
+button,input,textarea{font:inherit}
+button{cursor:pointer;touch-action:manipulation}
+button:disabled{opacity:.5;cursor:default}
+[hidden]{display:none!important}
+#page{display:flex;flex-direction:column;align-items:center;gap:9px;padding:10px 8px 30px}
+#picto{width:min(512px,calc(100vw - 16px));aspect-ratio:256/384;position:relative;overflow:hidden;background:#f5f5f5 url("/original/images/background.png") center/100% 100% no-repeat;image-rendering:pixelated;border:0;outline:1px solid #333;box-shadow:0 2px 7px #0005}
+.top-screen{position:absolute;left:0;top:0;width:100%;height:50%;overflow:hidden}
+#room-head{position:absolute;top:1.8%;left:5.3%;right:5.3%;height:10%;display:flex;align-items:center;gap:4px;text-align:left;font-size:clamp(9px,1.6vw,14px);color:#333}
+.room-tab{background:#bec0f5;border:1px solid #7477a7;border-bottom-color:#c0c2fa;border-radius:3px 9px 0 0;padding:0 10px;height:100%;display:flex;align-items:center;white-space:nowrap}
+.signal{margin-left:auto;color:#359c52;font-weight:bold}
+#messages{position:absolute;top:13%;left:6.2%;width:87.6%;height:84%;overflow-y:auto;text-align:left;scrollbar-color:#8798ac #f4f4f4;scrollbar-width:thin}
+.entry{margin:0 0 2px;min-height:23px;padding:2px 4px 3px;border:1px solid #a4b0cd;background:repeating-linear-gradient(to bottom,#fff 0,#fff 20px,#d6dcef 21px);overflow-wrap:anywhere}
+.entry:nth-child(5n+1){border-color:#a4b0ca}.entry:nth-child(5n+2){border-color:#e2b2ad}
+.entry:nth-child(5n+3){border-color:#bad59e}.entry:nth-child(5n+4){border-color:#d8afd8}
+.entry .who{display:inline-block;margin:-2px 0 1px -4px;padding:1px 6px 1px 4px;background:#bbc6ed;color:#23436c;border:1px solid #8a9dbb;font-size:10px;max-width:100%;overflow-wrap:anywhere}
+.entry:nth-child(5n+2) .who{background:#f2cac4;color:#994e48}
+.entry:nth-child(5n+3) .who{background:#d3ebb8;color:#427338}
+.entry .body{font-size:clamp(10px,1.6vw,14px);white-space:pre-wrap;line-height:1.4;color:#161616}
+.entry img{display:block;width:100%;max-height:95px;object-fit:contain;object-position:left;image-rendering:pixelated;background:#fff}
+#top-scroll{position:absolute;left:1%;top:22%;width:4%;height:70%;display:flex;flex-direction:column;justify-content:space-between}
+#top-scroll button{border:1px solid #8493aa;background:#eef0f7;padding:0;color:#415a8c;min-height:21px;font-size:12px}
+.bottom-screen{position:absolute;top:50%;left:0;width:100%;height:50%;background:url("/original/images/drawui.png") center/100% 100% no-repeat;overflow:hidden}
+#writing-board{position:absolute;top:7%;left:8%;right:7%;height:45%;background:transparent;border:0;text-align:left}
+#text{position:absolute;top:0;left:0;width:100%;height:100%;border:0;outline:0;resize:none;background:transparent;color:#212121;line-height:1.4;padding:3px;font-size:clamp(10px,1.7vw,15px);overflow:auto}
+#drawing{position:absolute;top:0;left:0;width:100%;height:100%;touch-action:none;image-rendering:pixelated;cursor:crosshair}
+#writing-board.mode-text #drawing{pointer-events:none}
+#writing-board.mode-pen #text{pointer-events:none}
+#tool-rail{position:absolute;top:18%;left:0%;width:7%;display:grid;gap:0}
+.tool-btn{min-height:18px;border:0;background:transparent;color:transparent;padding:0;font-weight:bold;font-size:0}
+.tool-btn[aria-pressed=true]{outline:1px solid #675ac1;outline-offset:-1px;background:rgba(102,96,210,.1)}
+#send-side{position:absolute;right:0%;top:55%;height:42%;width:12.3%;display:grid;gap:0;align-content:start}
+#send-side button{border:0;background:transparent;color:transparent;min-height:21px;padding:0;font-size:0}
+#send-side #send{background:rgba(94,170,84,.08);font-weight:bold}
+#touch-keys{position:absolute;left:8.2%;right:14%;top:55%;height:42%;display:grid;grid-template-columns:repeat(12,minmax(0,1fr));grid-template-rows:repeat(4,1fr);gap:0;z-index:1}
+#touch-keys button{border:0;background:transparent;color:transparent;font-size:0;min-width:0;min-height:0;padding:0;border-radius:0}
+#touch-keys button:focus-visible{outline:2px solid #6962c7;outline-offset:-2px}
+#touch-keys button:active{background:rgba(113,110,194,.18)}
+#touch-keys button[data-char=" "]{grid-column:span 3}
+#touch-keys button[data-char="BACKSPACE"]{grid-column:span 2}
+#touch-keys button[data-char="ENTER"]{grid-column:span 2}
+#international-keys{position:absolute;left:8.2%;right:14%;top:55%;height:42%;display:none;grid-template-columns:repeat(10,minmax(0,1fr));grid-template-rows:repeat(4,1fr);gap:1px;z-index:2;background:#ececf1;padding:1px}
+#international-keys.visible{display:grid}
+#international-keys button{border:1px solid #b1b3c2;background:linear-gradient(#fff,#d8dbe3);color:#1f2a41;font-size:clamp(9px,1.25vw,12px);min-width:0;min-height:0;padding:0;border-radius:0}
+#international-keys button:active{background:#c6c3f2}
+#statusbar{position:absolute;bottom:0;right:0;left:0;background:rgba(255,255,255,.85);height:3.5%;color:#4d688c;font-size:9px}
+#status{font-size:11px;display:inline}
+#lobby{position:absolute;inset:0;background:#fff url("/original/images/intro_bg.png") center/100% 100% no-repeat;z-index:4;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:7px;padding:18px 24px}
+#lobby-logo{display:block;width:40%;image-rendering:pixelated;margin:5px auto}
+#lobby h1{font-size:16px;font-weight:normal;margin:0;color:#46536f}
+#lobby .lobby-entry{font-size:12px;text-align:center}
+#lobby .lobby-entry input{display:block;margin:3px auto 5px;width:72%;min-height:22px;border:1px solid #777;background:#fff;font-size:13px;text-align:center}
+#lobby .lobby-entry button{display:block;width:75%;margin:7px auto;border:1px solid #61769c;background:#e5e9fb;padding:5px;font-size:13px}
+#lobby .lobby-note{font-size:10px;max-width:90%;line-height:1.3}
+#lobby .room-buttons{display:grid;grid-template-columns:1fr 1fr;gap:5px;width:80%}
+#lobby .room-buttons button{height:30px;border:0;background:transparent url("/original/images/room_a.png") center/100% 100% no-repeat;font-size:13px;color:#384968}
+#lobby .room-buttons button:nth-child(2){background-image:url("/original/images/room_b.png")}
+#lobby .room-buttons button:nth-child(3){background-image:url("/original/images/room_c.png")}
+#lobby .room-buttons button:nth-child(4){background-image:url("/original/images/room_d.png")}
+#lobby .room-buttons button:nth-child(5){background-image:url("/original/images/room_e.png")}
+#lobby .room-buttons button:focus-visible{outline:3px solid #589cec}
+#lobby .room-buttons button[aria-pressed=true]{filter:brightness(.88)}
+#lobby .room-buttons button{font-family:nds,monospace}
+#lobby button:disabled{opacity:.45}
+#security-panel{width:min(512px,calc(100vw - 16px));text-align:left;font-family:nds,"Courier New",monospace;font-size:12px;color:#29334d}
+#security-panel summary{cursor:pointer;border:1px solid #8c8fa8;padding:6px;background:#dedff0}
+.settings{border:1px solid #9fa2b5;background:#f1f1f5;padding:8px;display:grid;gap:7px}
+.settings label{display:block;margin-bottom:2px;font-size:11px}
+.settings input{width:100%;font-size:13px;padding:5px;border:1px solid #969ab2;background:#fff;color:#222}
+.settings output{display:block;overflow-wrap:anywhere;font-family:monospace;font-size:10px;background:#fff;padding:5px;border:1px solid #aaa}
+.settings button,#outside-actions button{padding:4px;border:1px solid #8a93a8;background:#e9ecf9;color:#203451;font-size:12px}
+.controls{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+#outside-actions{display:flex;align-items:center;justify-content:center;gap:5px;flex-wrap:wrap;font-family:nds;font-size:11px}
+#outside-actions button{padding:5px}
+.warning{width:min(512px,calc(100vw - 16px));font:11px/1.3 nds,monospace;text-align:left;color:#54526b;background:#f4f1d9;border:1px solid #b7b393;padding:5px}
+@media(max-width:540px){#page{padding-top:4px;gap:5px}#picto{width:min(100vw - 8px,512px)}#room-head{font-size:10px}.entry .body{font-size:11px}#touch-keys button{font-size:10px}#security-panel{width:calc(100vw - 8px)}}
+/* Original room selection sprites use x=31, y=224+32*n, w=192,h=32.
+   The original logo is 93x45 at the centered x=81.5 and y≈50. */
+#lobby{display:block;position:absolute;inset:0;padding:0;gap:0;background:#fff url("/original/images/intro_bg.png") center/100% 100% no-repeat}
+#lobby-logo{position:absolute;left:31.8359375%;top:13.0208333333%;width:36.328125%;height:11.71875%;margin:0;image-rendering:pixelated}
+#lobby h1{display:none}
+#lobby .lobby-entry{position:static;font-size:11px}
+#lobby label[for="nickname"]{position:absolute;left:32%;top:29.1666666667%;width:36%;text-align:left}
+#lobby #nickname{position:absolute;left:31.8359375%;top:33.0729166667%;width:36.328125%;height:6.25%;min-height:0;margin:0;padding:0;border:1px solid #333;font-size:clamp(10px,1.4vw,12px)}
+#lobby #new-room{position:absolute;left:21%;top:42.1875%;width:58%;height:5.7291666667%;min-height:0;margin:0;padding:0;border:1px solid #79859e;background:#e9ecf8;color:#25334a;font-size:clamp(9px,1.25vw,11px)}
+#lobby #connect{position:absolute;left:31.8359375%;top:49.21875%;width:36.328125%;height:5.7291666667%;min-height:0;margin:0;padding:0;border:1px solid #718a93;background:#d7e5dd;color:#234a32;font-size:clamp(10px,1.4vw,12px)}
+#lobby #disconnect{display:none}
+#lobby .lobby-note{position:absolute;left:13%;top:55.5%;width:74%;max-width:none;margin:0;font:clamp(8px,1.1vw,10px)/1.1 nds,monospace}
+#lobby .room-buttons{position:absolute;left:0;top:0;width:100%;height:100%;display:block;pointer-events:none}
+#lobby .room-buttons button{position:absolute;left:12.109375%;width:75%;height:8.3333333333%;min-height:0;margin:0;padding:0;border:0;border-radius:0;background-position:center;background-size:100% 100%;color:transparent;font-size:0;pointer-events:auto;image-rendering:pixelated}
+#lobby .room-buttons button:nth-child(1){top:58.3333333333%;background-image:url("/original/images/room_a.png")}
+#lobby .room-buttons button:nth-child(2){top:66.6666666667%;background-image:url("/original/images/room_b.png")}
+#lobby .room-buttons button:nth-child(3){top:75%;background-image:url("/original/images/room_c.png")}
+#lobby .room-buttons button:nth-child(4){top:83.3333333333%;background-image:url("/original/images/room_d.png")}
+#lobby .room-buttons button:nth-child(5){top:91.6666666667%;background-image:url("/original/images/room_e.png")}
+#lobby .room-buttons button[aria-pressed=true]{outline:1px solid #8c7adc;outline-offset:-2px;filter:none}
+#lobby .room-buttons button:focus-visible{outline:2px solid #445ca8;outline-offset:-2px}
+/* PIXI source of truth: connection (1,1), room badge (1,175),
+   scroll/message surface starts at x=21 and ends at y=189. */
+#room-head{position:absolute;left:0;top:0;width:100%;height:100%;display:block;pointer-events:none}
+#room-letter{position:absolute;left:.390625%;top:91.1458333333%;width:6.25%;height:8.3333333333%;background:transparent;border:0;padding:0;border-radius:0;image-rendering:pixelated}
+#connection-icon{position:absolute;left:.390625%;top:.5208333333%;width:6.25%;height:8.3333333333%;image-rendering:pixelated}
+#member-label,.signal{display:none}
+#messages{position:absolute;left:8.203125%;top:0;width:91.40625%;height:98.4375%;margin:0;padding:0;background:transparent;overflow-x:hidden;overflow-y:auto;scrollbar-width:none}
+#messages::-webkit-scrollbar{width:0}
+#messages .entry{border:0;margin:0 0 2px;padding:0;min-height:22px;background:transparent;position:relative}
+/* Original main-fork message sprites (width234, heights22/38/54/70/85).
+   The list grows upward towards the connection icon, like PIXI.scrollContainer. */
+#messages{display:flex;flex-direction:column;justify-content:flex-start}
+#messages::before{content:"";flex-grow:1;flex-shrink:1;min-height:0}
+#messages .entry{position:relative;flex:none;width:100%;height:auto;min-height:0;aspect-ratio:234/22;background:#fff url("/original/images/box_bg1.png") center/100% 100% no-repeat;border:0;box-shadow:none;overflow:hidden;margin:0;padding:0 4px}
+#messages .entry.lines-1{aspect-ratio:234/22;background-image:url("/original/images/box_lines1.png"),url("/original/images/box_bg1.png")}
+#messages .entry.lines-2{aspect-ratio:234/38;background-image:url("/original/images/box_lines2.png"),url("/original/images/box_bg2.png")}
+#messages .entry.lines-3{aspect-ratio:234/54;background-image:url("/original/images/box_lines3.png"),url("/original/images/box_bg3.png")}
+#messages .entry.lines-4{aspect-ratio:234/70;background-image:url("/original/images/box_lines4.png"),url("/original/images/box_bg4.png")}
+#messages .entry.lines-5{aspect-ratio:234/85;background-image:url("/original/images/box_lines5.png"),url("/original/images/box_bg5.png")}
+#messages .entry::after{content:"";position:absolute;inset:0;border:1px solid #8295c0;pointer-events:none}
+#messages .entry:nth-child(5n+2)::after{border-color:#d39793}
+#messages .entry:nth-child(5n+3)::after{border-color:#90af78}
+#messages .entry:nth-child(5n+4)::after{border-color:#bb96be}
+#messages .entry .who{display:block;position:relative;z-index:1;margin:0 0 0 2px;padding:1px 0 0;border:0;background:transparent;color:#405b91;font:clamp(10px,2.7vw,15px)/1 nds,monospace;max-width:100%;white-space:nowrap;overflow:hidden}
+#messages .entry .body{position:relative;z-index:1;margin:0;padding:1px 1px 0;color:#171717;font:clamp(11px,3.2vw,18px)/1.12 nds,monospace;white-space:pre-wrap;overflow-wrap:anywhere}
+#messages .entry img{position:relative;z-index:1;display:block;width:100%;height:auto;max-height:60%;object-fit:contain;object-position:left top;background:transparent;border:0;image-rendering:pixelated;margin:0}
+#messages .entry.lines-1 .body{white-space:nowrap}
+
+#messages .entry .who{margin:0;padding:0 4px;font:11px nds,monospace;background:transparent;border:0;color:#1d3a70}
+#messages .entry .body{font:11px/1.25 nds,monospace;white-space:pre-wrap;padding:1px 3px;max-width:100%}
+#exit-internal{position:absolute;left:95.703125%;top:.5208333333%;width:3.90625%;height:5.2083333333%;margin:0;padding:0;border:0;background:transparent;color:transparent;font-size:0;cursor:pointer;z-index:3}
+#outside-actions{display:none}
+#security-panel:not([open])+#outside-actions{display:none}
+#international-keys.visible button{background:rgba(251,251,255,.94);border:1px solid #9aa0b4;color:#2d2e41;font:10px nds,monospace}
+@media(max-width:540px){#messages .entry .body{font-size:11px}}
+/* Sprite-anchored geometry: ORIGINAL 256x384 renderer coordinates.
+   All percentages below come from src/main/resources/www/main.js. */
+#picto{width:min(512px,calc(100vw - 16px));aspect-ratio:256/384}
+#writing-board{left:8.203125%;right:auto;top:7.8125%;width:91.40625%;height:43.75%;background:transparent;border:0}
+#text,#drawing{padding:0;border:0;border-radius:0}
+#tool-rail{position:absolute;top:0;left:0;width:100%;height:100%;display:block;pointer-events:none}
+#tool-rail .tool-btn,#send-side button,#top-scroll button{position:absolute;min-height:0;height:auto;min-width:0;margin:0;padding:0;border:0;border-radius:0;background:transparent;color:transparent;font-size:0;box-shadow:none;pointer-events:auto}
+#tool-rail .tool-btn[aria-pressed=true]{outline:1px solid rgba(92,79,179,.6);outline-offset:-1px;background:rgba(102,96,210,.1)}
+#pen-tool{left:.78125%;top:19.7916666667%;width:5.46875%;height:6.7708333333%!important}
+#eraser-tool{left:.78125%;top:27.0833333333%;width:5.46875%;height:6.7708333333%!important}
+#big-pen-tool{left:.78125%;top:36.9791666667%;width:5.46875%;height:7.2916666667%!important}
+#small-pen-tool{left:.78125%;top:44.7916666667%;width:5.46875%;height:7.2916666667%!important}
+#keyboard-normal{left:.78125%;top:55.7291666667%;width:5.46875%;height:7.2916666667%!important}
+#keyboard-mode{left:.78125%;top:64.5833333333%;width:5.46875%;height:7.2916666667%!important}
+#send-side{position:absolute;left:0;right:auto;top:0;width:100%;height:100%;display:block;pointer-events:none}
+#send-side #send{left:87.890625%;top:54.1666666667%;width:12.109375%;height:15.625%!important;background:transparent}
+#send-side #copy-last{left:87.890625%;top:70.3125%;width:12.109375%;height:11.9791666667%!important}
+#send-side #erase{left:87.890625%;top:82.8125%;width:12.109375%;height:12.5%!important}
+#send-side #undo{display:none}
+#tool-rail #clear{display:none}
+#top-scroll{position:absolute;left:0;top:0;width:100%;height:100%;display:block;z-index:2;pointer-events:none}
+#top-scroll #scroll-up{left:.78125%;top:1.0416666667%;width:5.46875%;height:7.2916666667%!important}
+#top-scroll #scroll-down{left:.78125%;top:8.8541666667%;width:5.46875%;height:7.2916666667%!important}
+#touch-keys,#international-keys{position:absolute;inset:0;width:100%;height:100%;display:block;pointer-events:none;z-index:1;background:transparent;padding:0}
+#touch-keys button,#international-keys button{position:absolute;pointer-events:auto;display:block;margin:0;padding:0;background:transparent;border:0;border-radius:0;color:transparent;font-size:0;min-width:0;min-height:0}
+#touch-keys button[data-char=" "],#touch-keys button[data-char="BACKSPACE"],#touch-keys button[data-char="ENTER"]{grid-column:auto}
+#touch-keys button:focus-visible,#international-keys button:focus-visible{outline:1px solid #5d4bc9;outline-offset:-1px}
+#touch-keys button:active,#international-keys button:active{background:rgba(103,88,197,.16)}
+#international-keys{display:none;background:url("/original/images/accents.png") center/100% 100% no-repeat}
+#international-keys.visible{display:block}
+#international-keys.visible~#touch-keys{display:none}
+#touch-keys:has(~#international-keys.visible){visibility:hidden}
+#international-keys button{color:transparent}
+#outside-actions #undo-outside{display:inline-block}
+/* Pixel-exact compositing derived from main-fork generateMessageBox().
+   The original PIXI rendering order is bg -> lines -> outline -> name -> content.
+   Do NOT replace these authentic sprite alpha masks with CSS borders. */
+#messages .entry{
+  --frame-color:#06068c;
+  --line-color:#b8b8e4;
+  --outline-sprite:url("/original/images/box_outline5.png");
+  --lines-sprite:url("/original/images/box_lines5.png");
+  position:relative;isolation:isolate;flex:none;
+  width:100%;margin:0;padding:0;border:0;box-shadow:none;
+  background:url("/original/images/box_bg5.png") center/100% 100% no-repeat;
+  image-rendering:pixelated;
+  overflow:hidden;
+}
+#messages .entry.lines-1{aspect-ratio:234/22;background-image:url("/original/images/box_bg1.png");--outline-sprite:url("/original/images/box_outline1.png");--lines-sprite:url("/original/images/box_lines1.png")}
+#messages .entry.lines-2{aspect-ratio:234/38;background-image:url("/original/images/box_bg2.png");--outline-sprite:url("/original/images/box_outline2.png");--lines-sprite:url("/original/images/box_lines2.png")}
+#messages .entry.lines-3{aspect-ratio:234/54;background-image:url("/original/images/box_bg3.png");--outline-sprite:url("/original/images/box_outline3.png");--lines-sprite:url("/original/images/box_lines3.png")}
+#messages .entry.lines-4{aspect-ratio:234/70;background-image:url("/original/images/box_bg4.png");--outline-sprite:url("/original/images/box_outline4.png");--lines-sprite:url("/original/images/box_lines4.png")}
+#messages .entry.lines-5{aspect-ratio:234/85;background-image:url("/original/images/box_bg5.png");--outline-sprite:url("/original/images/box_outline5.png");--lines-sprite:url("/original/images/box_lines5.png")}
+#messages .entry::before,#messages .entry::after{
+  content:"";display:block;position:absolute;inset:0;pointer-events:none;
+  mask-repeat:no-repeat;mask-position:center;mask-size:100% 100%;
+  -webkit-mask-repeat:no-repeat;-webkit-mask-position:center;-webkit-mask-size:100% 100%;
+}
+#messages .entry::before{
+  z-index:1;background-color:var(--line-color);
+  mask-image:var(--lines-sprite);-webkit-mask-image:var(--lines-sprite);
+}
+#messages .entry::after{
+  z-index:4;background-color:var(--frame-color);border:0;
+  mask-image:var(--outline-sprite);-webkit-mask-image:var(--outline-sprite);
+}
+#messages .entry .who{
+  position:absolute;left:2.56410256%;top:4.70588235%;z-index:5;
+  width:35.5%;height:15%;margin:0;padding:0;
+  color:var(--frame-color);background:none;border:0;
+  font:normal min(20px, calc((100vw - 16px) * 10 / 256))/1 nds,monospace;
+  white-space:nowrap;overflow:hidden;text-overflow:clip;
+}
+#messages .entry .body{
+  position:absolute;left:2.5641%;top:23%;width:94%;height:74%;
+  margin:0;padding:0;z-index:3;color:#111;
+  font:normal min(20px, calc((100vw - 16px) * 10 / 256))/1.55 nds,monospace;
+  white-space:pre-wrap;overflow-wrap:anywhere;overflow:hidden;
+}
+#messages .entry img{
+  position:absolute;left:0;top:0;width:100%;height:100%;max-height:none;
+  margin:0;padding:0;border:0;background:transparent;
+  object-fit:fill;object-position:left top;z-index:2;image-rendering:pixelated;
+  clip-path:polygon(39% 0,100% 0,100% 100%,0 100%,0 23%,39% 23%);
+}
+/* Original drawing canvas is box_bg5 + box_lines + box_outline5
+   at (21,207), while drawui.png itself only supplies tools/keyboard. */
+#writing-board{
+  position:absolute;left:8.203125%;top:7.8125%;width:91.40625%;height:44.2708333333%;
+  margin:0;padding:0;border:0;box-shadow:none;background:url("/original/images/box_bg5.png") center/100% 100% no-repeat;
+  image-rendering:pixelated;isolation:isolate;overflow:hidden;
+  --frame-color:#07078d;--line-color:#b8b8df;
+}
+#writing-board::before,#writing-board::after{
+  content:"";position:absolute;inset:0;pointer-events:none;
+  mask-position:center;mask-size:100% 100%;mask-repeat:no-repeat;
+  -webkit-mask-position:center;-webkit-mask-size:100% 100%;-webkit-mask-repeat:no-repeat;
+}
+#writing-board::before{
+  z-index:1;background-color:var(--line-color);
+  mask-image:url("/original/images/box_lines5.png");
+  -webkit-mask-image:url("/original/images/box_lines5.png");
+}
+#writing-board::after{
+  z-index:4;background-color:var(--frame-color);
+  mask-image:url("/original/images/box_outline5.png");
+  -webkit-mask-image:url("/original/images/box_outline5.png");
+}
+#draft-name{
+  position:absolute;left:2.5641%;top:4.70588%;width:35%;height:15%;
+  z-index:5;pointer-events:none;white-space:nowrap;overflow:hidden;
+  color:var(--frame-color);
+  font:normal min(20px, calc((100vw - 16px) * 10 / 256))/1 nds,monospace;
+}
+#writing-board #drawing{
+  position:absolute;inset:0;width:100%;height:100%;z-index:3;
+  background:transparent;outline:0;border:0;cursor:crosshair;
+  /* Keep the full pointer surface; the sprite and name overlay hide reserved header pixels. */
+}
+#writing-board #text{
+  position:absolute;left:2.5641%;top:24%;width:94%;height:71%;z-index:3;
+  margin:0;padding:0;color:#171717;background:transparent;border:0;outline:0;
+  resize:none;overflow:auto;font:normal min(20px, calc((100vw - 16px) * 10 / 256))/1.55 nds,monospace;
+}
+#writing-board.mode-text #text{pointer-events:auto}
+#writing-board.mode-pen #drawing{pointer-events:auto}
+/* CSS reconstruction of PIXI MULTIPLY lines (original box_lines sprites
+   have near-transparent RGB that is lost when used as an alpha-only mask).
+   Maintain their 16-DS-pixel spacing while the original outlined sprite remains authoritative. */
+#picto{--ds-pixel:min(2px,calc((100vw - 16px)/256))}
+#messages .entry .rule-lines,#writing-board .rule-lines{
+  position:absolute;left:1%;right:1%;top:calc(19 * var(--ds-pixel));
+  bottom:calc(2 * var(--ds-pixel));z-index:2;pointer-events:none;
+  background:repeating-linear-gradient(to bottom,
+     var(--line-color) 0,var(--line-color) var(--ds-pixel),
+     transparent var(--ds-pixel),transparent calc(16 * var(--ds-pixel)));
+}
+#messages .entry .body{
+  top:calc(19 * var(--ds-pixel));
+  height:calc(100% - (20 * var(--ds-pixel)));
+}
+#messages .entry .who{
+  top:calc(4 * var(--ds-pixel));left:calc(6 * var(--ds-pixel));
+  width:calc(84 * var(--ds-pixel));height:calc(15 * var(--ds-pixel));
+  line-height:calc(12 * var(--ds-pixel));
+}
+#writing-board #draft-name{
+  top:calc(4 * var(--ds-pixel));left:calc(6 * var(--ds-pixel));
+  width:calc(84 * var(--ds-pixel));height:calc(15 * var(--ds-pixel));
+  line-height:calc(12 * var(--ds-pixel));
+}
+/* Lobby polish: keep the original 256x384 room sprites, but align the
+   temporary-room workflow to the unused gap above Chat Room A (y=224). */
+#lobby #new-room{
+  left:12.109375%;top:42.1875%;width:75%;height:6.25%;
+  border:2px solid #5d6187;border-radius:3px;
+  background:linear-gradient(180deg,#fcfcff 0%,#ededf5 58%,#c8c8d8 100%);
+  color:#242448;font-size:clamp(10px,1.7vw,14px);
+  box-shadow:inset 1px 1px #fff,1px 2px #888;
+}
+#lobby #connect{
+  left:12.109375%;top:49.73958333%;width:75%;height:6.25%;
+  border:2px solid #516b6b;border-radius:3px;
+  background:linear-gradient(180deg,#f1fff7 0%,#d6eadf 60%,#b3d2c0 100%);
+  color:#213e36;font-size:clamp(10px,1.7vw,14px);
+  box-shadow:inset 1px 1px #fff,1px 2px #779080;
+}
+#lobby #new-room:focus-visible,#lobby #connect:focus-visible{
+  outline:2px solid #262483;outline-offset:2px;
+}
+#lobby #new-room:hover{filter:brightness(1.03)}
+#lobby #connect:hover{filter:brightness(1.035)}
+#lobby .lobby-note{
+  left:12.109375%;top:56.51041667%;width:75%;height:1.4%;
+  font-size:clamp(7px,1vw,9px);line-height:1;color:#41415d;
+  text-shadow:0 1px white;white-space:nowrap;text-align:center;
+}
+#lobby .room-buttons button[aria-pressed="true"]{
+  outline:2px solid #5252ab;outline-offset:-3px;
+  box-shadow:inset 4px 0 0 #6262ba;filter:brightness(.99);
+}
+/* A4 is the physical medium, 256px is only the original logical raster width.
+   Browser print expands each original pixel to exactly two CSS pixels, with
+   no interpolation; message strips flow top-to-bottom without screen resets. */
+#pixel-print{display:none}
+@page { size:A4 portrait; margin:0 }
+@media print {
+  html,body{
+    width:210mm!important;height:auto!important;min-height:0!important;
+    margin:0!important;padding:0!important;background:#fff!important;
+    overflow:visible!important;
+  }
+  #page{display:none!important}
+  #pixel-print,#pixel-print[hidden]{
+    display:block!important;position:static!important;width:210mm!important;
+    margin:0!important;padding:0!important;overflow:visible!important;
+  }
+  #pixel-print .pixel-page{
+    display:block!important;position:relative!important;
+    width:512px!important;height:1040px!important;
+    max-width:none!important;min-width:512px!important;
+    min-height:1040px!important;margin:0 auto!important;
+    padding:0!important;border:0!important;object-fit:fill!important;
+    image-rendering:pixelated!important;image-rendering:crisp-edges!important;
+    break-after:page!important;page-break-after:always!important;
+  }
+  #pixel-print .pixel-page:last-child{
+    break-after:auto!important;page-break-after:auto!important
+  }
+}
+</style>
+</head>
+<body>
+<section id="pixel-print" aria-label="PictoRust pixel export" hidden></section>
+<div id="page">
+<div id="picto" aria-label="Original PictoChat inspired 256 by 384 pixel interface">
+  <section class="top-screen" aria-label="Chat-Bildschirm">
+    <div id="room-head"><img id="connection-icon" src="/original/images/connection.png" alt="Signalstärke"><img id="room-letter" src="/original/images/letter_room_a.png" alt="Chat Room A"><span id="member-label" aria-label="Raumstatus">Gäste: 0</span></div>
+
+    <section id="messages" aria-label="Nachrichten" aria-live="polite"></section>
+  </section>
+  <section class="bottom-screen" aria-label="Touchscreen">
+    <button type="button" id="exit-internal" aria-label="Raum verlassen">EXIT</button>
+    <div id="top-scroll"><button id="scroll-up" aria-label="Nach oben">▲</button><button id="scroll-down" aria-label="Nach unten">▼</button></div>
+    <div id="writing-board" class="mode-pen"><span class="rule-lines" aria-hidden="true"></span><span id="draft-name" aria-hidden="true">Gast</span>
+      <textarea id="text" maxlength="2000" placeholder="ÄÖÜ ß ğışç 😊" aria-label="Text eingeben"></textarea>
+      <canvas id="drawing" width="512" height="170" aria-label="Zeichenfeld"></canvas>
+    </div>
+    <nav id="tool-rail" aria-label="PictoChat Stiftwerkzeuge">
+      <button class="tool-btn" type="button" id="pen-tool" aria-label="Stift" aria-pressed="true">✎</button>
+      <button class="tool-btn" type="button" id="text-tool" aria-label="Texteingabe" aria-pressed="false">A</button>
+      <button class="tool-btn" type="button" id="eraser-tool" aria-label="Radiergummi">▱</button>
+      <button class="tool-btn" type="button" id="clear" aria-label="Zeichnung löschen">□</button>
+      <button class="tool-btn" type="button" id="big-pen-tool" aria-label="Breiter Stift">●</button>
+      <button class="tool-btn" type="button" id="small-pen-tool" aria-label="Dünner Stift">·</button>
+      <button class="tool-btn" type="button" id="keyboard-normal" aria-label="Normale Tastatur">abc</button>
+      <button class="tool-btn" type="button" id="keyboard-mode" aria-label="Internationale Tastatur umschalten">あ</button>
+    </nav>
+    <div id="send-side">
+      <button type="button" id="send" disabled>SEND ↑</button>
+      <button type="button" id="undo" aria-label="Letzten Strich rückgängig">↶</button>
+      <button type="button" id="erase" aria-label="Chat löschen">CLEAR</button>
+      <button type="button" id="copy-last" aria-label="Letzte Nachricht kopieren">COPY</button>
+    </div>
+    <section id="touch-keys" role="group" aria-label="Original PictoChat QWERTY keyboard">
+      <button type="button" data-char="1" aria-label="1">1</button>
+      <button type="button" data-char="2" aria-label="2">2</button>
+      <button type="button" data-char="3" aria-label="3">3</button>
+      <button type="button" data-char="4" aria-label="4">4</button>
+      <button type="button" data-char="5" aria-label="5">5</button>
+      <button type="button" data-char="6" aria-label="6">6</button>
+      <button type="button" data-char="7" aria-label="7">7</button>
+      <button type="button" data-char="8" aria-label="8">8</button>
+      <button type="button" data-char="9" aria-label="9">9</button>
+      <button type="button" data-char="0" aria-label="0">0</button>
+      <button type="button" data-char="-" aria-label="-">-</button>
+      <button type="button" data-char="=" aria-label="=">=</button>
+      <button type="button" data-char="q" aria-label="q">q</button>
+      <button type="button" data-char="w" aria-label="w">w</button>
+      <button type="button" data-char="e" aria-label="e">e</button>
+      <button type="button" data-char="r" aria-label="r">r</button>
+      <button type="button" data-char="t" aria-label="t">t</button>
+      <button type="button" data-char="y" aria-label="y">y</button>
+      <button type="button" data-char="u" aria-label="u">u</button>
+      <button type="button" data-char="i" aria-label="i">i</button>
+      <button type="button" data-char="o" aria-label="o">o</button>
+      <button type="button" data-char="p" aria-label="p">p</button>
+      <button type="button" data-char="BACKSPACE" aria-label="BACKSPACE">⌫</button>
+      <button type="button" data-char="CAPS" aria-label="CAPS">CAPS</button>
+      <button type="button" data-char="a" aria-label="a">a</button>
+      <button type="button" data-char="s" aria-label="s">s</button>
+      <button type="button" data-char="d" aria-label="d">d</button>
+      <button type="button" data-char="f" aria-label="f">f</button>
+      <button type="button" data-char="g" aria-label="g">g</button>
+      <button type="button" data-char="h" aria-label="h">h</button>
+      <button type="button" data-char="j" aria-label="j">j</button>
+      <button type="button" data-char="k" aria-label="k">k</button>
+      <button type="button" data-char="l" aria-label="l">l</button>
+      <button type="button" data-char="ENTER" aria-label="ENTER">↵</button>
+      <button type="button" data-char="SHIFT" aria-label="SHIFT">SHIFT</button>
+      <button type="button" data-char="z" aria-label="z">z</button>
+      <button type="button" data-char="x" aria-label="x">x</button>
+      <button type="button" data-char="c" aria-label="c">c</button>
+      <button type="button" data-char="v" aria-label="v">v</button>
+      <button type="button" data-char="b" aria-label="b">b</button>
+      <button type="button" data-char="n" aria-label="n">n</button>
+      <button type="button" data-char="m" aria-label="m">m</button>
+      <button type="button" data-char="," aria-label=",">,</button>
+      <button type="button" data-char="." aria-label=".">.</button>
+      <button type="button" data-char="/" aria-label="/">/</button>
+      <button type="button" data-char=";" aria-label=";">;</button>
+      <button type="button" data-char="'" aria-label="'">'</button>
+      <button type="button" data-char=" " aria-label="Leertaste">SPACE</button>
+      <button type="button" data-char="[" aria-label="Linke Klammer">[</button>
+      <button type="button" data-char="]" aria-label="Rechte Klammer">]</button>
+    </section>
+    <section id="international-keys" role="group" aria-label="Deutsch / Türkçe">
+      <button type="button" data-char="ä" aria-label="ä">ä</button>
+      <button type="button" data-char="ö" aria-label="ö">ö</button>
+      <button type="button" data-char="ü" aria-label="ü">ü</button>
+      <button type="button" data-char="ß" aria-label="ß">ß</button>
+      <button type="button" data-char="Ä" aria-label="Ä">Ä</button>
+      <button type="button" data-char="Ö" aria-label="Ö">Ö</button>
+      <button type="button" data-char="Ü" aria-label="Ü">Ü</button>
+      <button type="button" data-char="ç" aria-label="ç">ç</button>
+      <button type="button" data-char="ğ" aria-label="ğ">ğ</button>
+      <button type="button" data-char="ı" aria-label="ı">ı</button>
+      <button type="button" data-char="İ" aria-label="İ">İ</button>
+      <button type="button" data-char="ş" aria-label="ş">ş</button>
+      <button type="button" data-char="Ç" aria-label="Ç">Ç</button>
+      <button type="button" data-char="Ğ" aria-label="Ğ">Ğ</button>
+      <button type="button" data-char="Ş" aria-label="Ş">Ş</button>
+      <button type="button" data-char="à" aria-label="à">à</button>
+      <button type="button" data-char="á" aria-label="á">á</button>
+      <button type="button" data-char="é" aria-label="é">é</button>
+      <button type="button" data-char="ê" aria-label="ê">ê</button>
+      <button type="button" data-char="ë" aria-label="ë">ë</button>
+      <button type="button" data-char="ñ" aria-label="ñ">ñ</button>
+      <button type="button" data-char="€" aria-label="€">€</button>
+      <button type="button" data-char="₺" aria-label="₺">₺</button>
+      <button type="button" data-char="😊" aria-label="😊">😊</button>
+      <button type="button" data-char="!" aria-label="!">!</button>
+      <button type="button" data-char="?" aria-label="?">?</button>
+      <button type="button" data-char="@" aria-label="@">@</button>
+      <button type="button" data-char="#" aria-label="#">#</button>
+      <button type="button" data-char="%" aria-label="%">%</button>
+      <button type="button" data-char="&amp;" aria-label="&amp;">&amp;</button>
+      <button type="button" data-char="+" aria-label="+">+</button>
+      <button type="button" data-char="-" aria-label="-">-</button>
+      <button type="button" data-char="=" aria-label="=">=</button>
+      <button type="button" data-char="(" aria-label="(">(</button>
+      <button type="button" data-char=")" aria-label=")">)</button>
+      <button type="button" data-char="." aria-label=".">.</button>
+      <button type="button" data-char="," aria-label=",">,</button>
+      <button type="button" data-char=" " aria-label="Leertaste">SPACE</button>
+      <button type="button" data-char="BACKSPACE" aria-label="BACKSPACE">⌫</button>
+      <button type="button" data-char="ENTER" aria-label="ENTER">↵</button>
+    </section>
+        <div id="statusbar"><span id="status" role="status">Nicht verbunden</span></div>
+  </section>
+  <section id="lobby" aria-label="PictoChat Lobby">
+    <img id="lobby-logo" src="/original/images/logo.png" alt="Original PictoChat Logo">
+    <h1>PictoRust</h1>
+    <div class="lobby-entry">
+      <label for="nickname">Username</label>
+      <input id="nickname" maxlength="40" placeholder="Gast" spellcheck="false" autocomplete="off">
+      <div class="room-buttons" aria-label="Original Chatroom-Auswahl">
+        <button type="button" data-room-letter="A" aria-pressed="true">A</button>
+        <button type="button" data-room-letter="B">B</button>
+        <button type="button" data-room-letter="C">C</button>
+        <button type="button" data-room-letter="D">D</button>
+        <button type="button" data-room-letter="E">E</button>
+      </div>
+      <button type="button" id="new-room">Raum + Einladung erstellen</button>
+      <button type="button" id="connect">Verbinden</button>
+      <button type="button" id="disconnect" disabled>Trennen</button>
+    </div>
+    <p class="lobby-note">Temporär · Ohne Konto · Ende-zu-Ende-Testbetrieb</p>
+  </section>
+</div>
+<details id="security-panel" open>
+  <summary>Raum-Einladung · Kryptografische Sitzung · Einstellungen</summary>
+  <section class="settings" aria-label="Raumzugang">
+    <div><label for="room">Room ID</label><input id="room" minlength="32" maxlength="32" spellcheck="false" autocomplete="off"><button id="copy-room" type="button">Raum-ID kopieren</button></div>
+    <div><label for="token">Einladungstoken</label><input id="token" type="password" maxlength="64" autocomplete="off" spellcheck="false"><button id="copy-invite" type="button">Einladung kopieren</button></div>
+    <div><label for="e2ee-key">Separater Chat-Schlüssel (AES-GCM V2, nicht MLS)</label><input id="e2ee-key" type="password" maxlength="64" autocomplete="off" spellcheck="false"><button id="generate-key" type="button">Schlüssel erzeugen</button><button id="show-key" type="button">Anzeigen / verbergen</button></div>
+    <div><label>Eigener temporärer Geräte-Fingerprint</label><output id="own-fingerprint">Wird erzeugt …</output><button id="new-identity" type="button">Neue Sitzungsidentität</button></div>
+    <div><label for="trusted-fingerprints">Unabhängig verifizierte Fingerprints anderer Teilnehmer</label><input id="trusted-fingerprints" autocomplete="off" spellcheck="false"></div>
+  </section>
+  <div class="controls"><button id="pdf" type="button">PDF exportieren</button><button id="clear-chat" type="button">Chat löschen</button><button id="leave-room" type="button">EXIT</button><button id="undo-outside" type="button">Rückgängig</button></div>
+</details>
+<div class="warning">PICTORUST · EXPERIMENTELLE AES-GCM- UND P-256-SIGNATUREN · Originalgrafiken aus dem Haupt-Fork. Keine MLS-Integration im Browser, keine Forward Secrecy. Nicht für vertrauliche Gespräche freigegeben.</div>
+</div>
+<script type="module" src="./app.mjs"></script>
+</body>
+</html>

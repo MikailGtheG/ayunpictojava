@@ -1,0 +1,615 @@
+//! Development-only loopback WebSocket relay.
+//! Client-side experimental AES-GCM with bearer room admission. No verified identities,
+//! automatic key distribution, forward secrecy, or TLS yet.
+use std::{net::SocketAddr, sync::{Arc, Mutex}, time::{Duration, Instant, SystemTime, UNIX_EPOCH}};
+use rand::{rngs::OsRng, RngCore};
+use rust_embed::RustEmbed;
+use axum::{body::Body, response::Response};
+use axum::{
+    extract::{
+        ws::{Message, WebSocket, WebSocketUpgrade},
+        Path, State,
+    },
+    http::{header::{ORIGIN, SEC_WEBSOCKET_PROTOCOL}, HeaderMap, StatusCode},
+    routing::{get, post},
+    Router,
+};
+use futures_util::{SinkExt, StreamExt};
+use pictochat_relay::{auth::RoomAuth, Rooms, MAX_FRAME_BYTES};
+use tokio::sync::{OwnedSemaphorePermit, Semaphore};
+
+const MAX_CONNECTIONS: usize = 128;
+const MAX_MESSAGES_PER_SECOND: u32 = 20;
+const TEMP_ROOM_TTL_SECONDS: u64 = 6 * 3600;
+const MAX_ROOM_CREATIONS_PER_MINUTE: u32 = 32;
+
+#[derive(Clone)]
+struct AppState {
+    rooms: Arc<Rooms>,
+    slots: Arc<Semaphore>,
+    auth: Arc<RoomAuth>,
+    issuance: Arc<Mutex<RoomIssuanceQuota>>,
+}
+
+// Global, bounded, process-local admission throttle. An unauthenticated caller
+// must not be allowed to force unlimited cryptographic token generation.
+// This is not per-IP protection and remains loopback-only.
+struct RoomIssuanceQuota {
+    window_start: Instant,
+    count: u32,
+}
+
+impl RoomIssuanceQuota {
+    fn new() -> Self {
+        Self { window_start: Instant::now(), count: 0 }
+    }
+
+    fn permit(&mut self, now: Instant) -> bool {
+        if now.duration_since(self.window_start) >= Duration::from_secs(60) {
+            self.window_start = now;
+            self.count = 0;
+        }
+        if self.count >= MAX_ROOM_CREATIONS_PER_MINUTE { return false; }
+        self.count += 1;
+        true
+    }
+}
+
+// Fixed one-second quota per session, including clients on the same room.
+struct MessageQuota {
+    window_start: Instant,
+    accepted: u32,
+}
+
+impl MessageQuota {
+    fn new() -> Self {
+        Self { window_start: Instant::now(), accepted: 0 }
+    }
+
+    fn permit(&mut self, now: Instant) -> bool {
+        if now.duration_since(self.window_start) >= Duration::from_secs(1) {
+            self.window_start = now;
+            self.accepted = 0;
+        }
+        if self.accepted >= MAX_MESSAGES_PER_SECOND { return false; }
+        self.accepted += 1;
+        true
+    }
+}
+
+#[tokio::main]
+async fn main() -> std::io::Result<()> {
+    let secret = std::env::var("PICTOCHAT_RELAY_SECRET")
+        .map_err(|_| std::io::Error::other("set PICTOCHAT_RELAY_SECRET to 64 hex digits"))?;
+    let auth = Arc::new(RoomAuth::from_hex(&secret).map_err(std::io::Error::other)?);
+    let args: Vec<String> = std::env::args().collect();
+    if args.len() == 3 && args[1] == "invite" {
+        let token = auth.issue(&args[2]).map_err(std::io::Error::other)?;
+        println!("{token}");
+        return Ok(());
+    }
+    if args.len() != 1 {
+        return Err(std::io::Error::other("usage: cargo run -- [invite 32-hex-room-id]"));
+    }
+    let state = AppState {
+        rooms: Arc::new(Rooms::default()),
+        slots: Arc::new(Semaphore::new(MAX_CONNECTIONS)),
+        auth,
+        issuance: Arc::new(Mutex::new(RoomIssuanceQuota::new())),
+    };
+    let app = router(state);
+    // Bind exclusively to loopback until the protocol is authenticated and E2EE.
+    let addr = SocketAddr::from(([127, 0, 0, 1], 8787));
+    let listener = tokio::net::TcpListener::bind(addr).await?;
+    println!("EXPERIMENTAL PSK relay listening at {addr} (loopback only; NOT production-ready)");
+    axum::serve(listener, app).await
+}
+
+// Serve only the original static Nintendo DS artwork, never the legacy
+// application's JavaScript or HTML (which are tied to the old plaintext API).
+#[derive(RustEmbed)]
+#[folder = "../src/main/resources/www/"]
+struct OriginalPictoAssets;
+
+async fn original_picto_image(Path(name): Path<String>) -> Result<Response, StatusCode> {
+    if name.contains('/') || !name.ends_with(".png")
+        || !name.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_' || b == b'.')
+    {
+        return Err(StatusCode::NOT_FOUND);
+    }
+    let key = format!("images/{name}");
+    let asset = OriginalPictoAssets::get(&key).ok_or(StatusCode::NOT_FOUND)?;
+    Response::builder()
+        .status(StatusCode::OK)
+        .header(axum::http::header::CONTENT_TYPE, "image/png")
+        .header(axum::http::header::CACHE_CONTROL, "public, max-age=86400")
+        .header(axum::http::header::X_CONTENT_TYPE_OPTIONS, "nosniff")
+        .body(Body::from(asset.data.into_owned()))
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
+}
+
+async fn original_picto_font() -> Result<Response, StatusCode> {
+    let asset = OriginalPictoAssets::get("nds.ttf").ok_or(StatusCode::NOT_FOUND)?;
+    Response::builder()
+        .status(StatusCode::OK)
+        .header(axum::http::header::CONTENT_TYPE, "font/ttf")
+        .header(axum::http::header::CACHE_CONTROL, "public, max-age=86400")
+        .header(axum::http::header::X_CONTENT_TYPE_OPTIONS, "nosniff")
+        .body(Body::from(asset.data.into_owned()))
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
+}
+
+fn router(state: AppState) -> Router {
+    Router::new()
+        .route("/", get(dev_home))
+        .route("/original/images/{name}", get(original_picto_image))
+        .route("/original/nds.ttf", get(original_picto_font))
+        .route("/crypto.mjs", get(crypto_module))
+        .route("/app.mjs", get(app_module))
+        .route("/session.mjs", get(session_module))
+        .route("/pictorust-export.mjs", get(pictorust_export_module))
+        .route("/identity.mjs", get(identity_module))
+        .route("/new-room", post(create_temporary_room))
+        .route("/ws/{room_id}", get(connect))
+        .with_state(state)
+}
+
+async fn app_module() -> ([(axum::http::header::HeaderName, &'static str); 2], &'static str) {
+    (
+        [
+            (axum::http::header::CONTENT_TYPE, "text/javascript; charset=utf-8"),
+            (axum::http::header::CACHE_CONTROL, "no-store"),
+        ],
+        include_str!("../public/app.mjs"),
+    )
+}
+
+async fn pictorust_export_module() -> ([(axum::http::header::HeaderName, &'static str); 2], &'static str) {
+    (
+        [
+            (axum::http::header::CONTENT_TYPE, "text/javascript; charset=utf-8"),
+            (axum::http::header::CACHE_CONTROL, "no-store"),
+        ],
+        include_str!("../public/pictorust-export.mjs"),
+    )
+}
+
+async fn session_module() -> ([(axum::http::header::HeaderName, &'static str); 2], &'static str) {
+    (
+        [
+            (axum::http::header::CONTENT_TYPE, "text/javascript; charset=utf-8"),
+            (axum::http::header::CACHE_CONTROL, "no-store"),
+        ],
+        include_str!("../public/session.mjs"),
+    )
+}
+
+async fn identity_module() -> ([(axum::http::header::HeaderName, &'static str); 2], &'static str) {
+    (
+        [
+            (axum::http::header::CONTENT_TYPE, "text/javascript; charset=utf-8"),
+            (axum::http::header::CACHE_CONTROL, "no-store"),
+        ],
+        include_str!("../public/identity.mjs"),
+    )
+}
+
+async fn crypto_module() -> ([(axum::http::header::HeaderName, &'static str); 2], &'static str) {
+    (
+        [
+            (axum::http::header::CONTENT_TYPE, "text/javascript; charset=utf-8"),
+            (axum::http::header::CACHE_CONTROL, "no-store"),
+        ],
+        include_str!("../public/crypto.mjs"),
+    )
+}
+
+async fn dev_home() -> ([(axum::http::header::HeaderName, &'static str); 5], &'static str) {
+    (
+        [
+            (axum::http::header::CONTENT_TYPE, "text/html; charset=utf-8"),
+            (axum::http::header::CACHE_CONTROL, "no-store"),
+            (axum::http::header::CONTENT_SECURITY_POLICY, "default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' ws://127.0.0.1:8787 ws://localhost:8787; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"),
+            (axum::http::header::REFERRER_POLICY, "no-referrer"),
+            (axum::http::header::X_CONTENT_TYPE_OPTIONS, "nosniff"),
+        ],
+        include_str!("../public/index.html"),
+    )
+}
+
+// Stateless, time-limited HMAC bearer invitation. Never persisted.
+// Legacy administratively issued IDs stay supported for the development tests.
+fn unix_seconds() -> u64 {
+    SystemTime::now().duration_since(UNIX_EPOCH)
+        .unwrap_or_default().as_secs()
+}
+
+fn temporary_room_deadline(id: &str) -> Option<u64> {
+    if id.len() != 32 || !id.starts_with("ee") {
+        return None;
+    }
+    // Invalid temporary identifiers are rejected in the admission path.
+    let created = u64::from_str_radix(&id[2..10], 16).unwrap_or(0);
+    Some(created.saturating_add(TEMP_ROOM_TTL_SECONDS))
+}
+
+fn temporary_room_is_expired(id: &str) -> bool {
+    let Some(deadline) = temporary_room_deadline(id) else { return false; };
+    let now = unix_seconds();
+    let created = deadline.saturating_sub(TEMP_ROOM_TTL_SECONDS);
+    created > now.saturating_add(60) || now >= deadline
+}
+
+async fn create_temporary_room(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<([(axum::http::header::HeaderName, &'static str); 3], String), StatusCode> {
+    if !origin_is_allowed(&headers) {
+        return Err(StatusCode::FORBIDDEN);
+    }
+    {
+        let mut quota = state.issuance.lock().map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
+        if !quota.permit(Instant::now()) {
+            return Err(StatusCode::TOO_MANY_REQUESTS);
+        }
+    }
+    let now = unix_seconds();
+    let mut bytes = [0u8; 11];
+    OsRng.fill_bytes(&mut bytes);
+    let id = format!("ee{:08x}{}", now as u32, hex::encode(bytes));
+    let token = state.auth.issue(&id).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let expires = now.saturating_add(TEMP_ROOM_TTL_SECONDS);
+    // Values are exclusively generated ASCII hex and numeric characters.
+    let body = format!("{{\"roomId\":\"{id}\",\"token\":\"{token}\",\"expiresAt\":{expires}}}");
+    Ok((
+        [
+            (axum::http::header::CONTENT_TYPE, "application/json; charset=utf-8"),
+            (axum::http::header::CACHE_CONTROL, "no-store"),
+            (axum::http::header::REFERRER_POLICY, "no-referrer"),
+        ],
+        body,
+    ))
+}
+
+async fn connect(
+    State(state): State<AppState>,
+    Path(room_id): Path<String>,
+    headers: HeaderMap,
+    ws: WebSocketUpgrade,
+) -> Result<axum::response::Response, StatusCode> {
+    if !origin_is_allowed(&headers) {
+        return Err(StatusCode::FORBIDDEN);
+    }
+    if temporary_room_is_expired(&room_id) || !room_capability_valid(&headers, &room_id, &state.auth) {
+        return Err(StatusCode::FORBIDDEN);
+    }
+    let permit = state.slots.clone().try_acquire_owned()
+        .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
+    let room = state.rooms.join(&room_id).map_err(|_| StatusCode::BAD_REQUEST)?;
+    let room_permit = room.try_enter().map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
+    // Register the subscriber BEFORE completing the handshake. Otherwise a peer
+    // may send a frame just after HTTP 101, but before session() subscribes.
+    let receiver = room.subscribe();
+    let time_to_live = temporary_room_deadline(&room_id)
+        .map(|deadline| Duration::from_secs(deadline.saturating_sub(unix_seconds())));
+    Ok(ws.protocols(["picto.v1"]).max_message_size(MAX_FRAME_BYTES).max_frame_size(MAX_FRAME_BYTES)
+        .on_upgrade(move |socket| session(socket, room, receiver, permit, room_permit, time_to_live)))
+}
+
+async fn session(socket: WebSocket, room: Arc<pictochat_relay::Room>, mut receiver: tokio::sync::broadcast::Receiver<Vec<u8>>, _permit: OwnedSemaphorePermit, _room_permit: OwnedSemaphorePermit, time_to_live: Option<Duration>) {
+    let (mut outgoing, mut incoming) = socket.split();
+    let mut quota = MessageQuota::new();
+    // Not even an already connected peer may extend a temporary room past expiry.
+    let expiry = async move {
+        match time_to_live {
+            Some(duration) => tokio::time::sleep(duration).await,
+            None => std::future::pending::<()>().await,
+        }
+    };
+    tokio::pin!(expiry);
+    loop {
+        tokio::select! {
+            _ = &mut expiry => break,
+            received = incoming.next() => {
+                match received {
+                    Some(Ok(Message::Binary(data))) => {
+                        if !quota.permit(Instant::now()) || room.publish(data.to_vec()).is_err() { break; }
+                    }
+                    Some(Ok(Message::Close(_))) | None | Some(Err(_)) => break,
+                    Some(Ok(Message::Text(_))) => break, // encrypted envelopes must be binary
+                    _ => {}
+                }
+            }
+            delivered = receiver.recv() => {
+                match delivered {
+                    Ok(payload) => {
+                        if outgoing.send(Message::Binary(payload.into())).await.is_err() { break; }
+                    }
+                    Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => break,
+                    Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
+                }
+            }
+        }
+    }
+}
+
+
+
+// The browser sends both subprotocol values; only the public protocol identifier
+// is echoed. The admission token is never placed in a URL or echoed to the client.
+// This is bearer-token room admission, not participant identity nor E2EE.
+fn room_capability_valid(headers: &HeaderMap, room: &str, auth: &RoomAuth) -> bool {
+    let mut saw_protocol = false;
+    let mut candidate: Option<&str> = None;
+    for header in headers.get_all(SEC_WEBSOCKET_PROTOCOL).iter() {
+        let Ok(header) = header.to_str() else { return false; };
+        for part in header.split(',').map(str::trim) {
+            if part == "picto.v1" {
+                if saw_protocol { return false; }
+                saw_protocol = true;
+            } else if let Some(value) = part.strip_prefix("auth.") {
+                if candidate.is_some() { return false; }
+                candidate = Some(value);
+            } else {
+                return false;
+            }
+        }
+    }
+    saw_protocol && candidate.is_some_and(|token| auth.verify(room, token))
+}
+
+// Browsers always send Origin on WebSocket handshakes; CLI clients may omit it.
+// This is CSWSH protection, NOT authentication or authorization.
+fn origin_is_allowed(headers: &HeaderMap) -> bool {
+    // Duplicate Origin fields must not be accepted, even if the first is valid.
+    // A single missing Origin is retained only for local CLI integration tests.
+    let mut origins = headers.get_all(ORIGIN).iter();
+    match (origins.next(), origins.next()) {
+        (None, None) => true,
+        (Some(origin), None) => matches!(
+            origin.to_str(),
+            Ok("http://127.0.0.1:8787" | "http://localhost:8787")
+        ),
+        _ => false,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::http::HeaderValue;
+
+
+
+    #[test]
+    fn rejects_duplicate_or_foreign_websocket_origins() {
+        let mut headers = HeaderMap::new();
+        assert!(origin_is_allowed(&headers), "local CLI clients may omit Origin");
+        headers.insert(ORIGIN, HeaderValue::from_static("http://127.0.0.1:8787"));
+        assert!(origin_is_allowed(&headers));
+        headers.append(ORIGIN, HeaderValue::from_static("https://evil.example"));
+        assert!(!origin_is_allowed(&headers), "duplicate Origin must be rejected");
+        headers.remove(ORIGIN);
+        headers.insert(ORIGIN, HeaderValue::from_static("https://evil.example"));
+        assert!(!origin_is_allowed(&headers));
+        headers.insert(ORIGIN, HeaderValue::from_static("http://localhost:8787"));
+        assert!(origin_is_allowed(&headers));
+    }
+
+    #[test]
+    fn room_creation_quota_has_bounded_window_and_resets() {
+        let mut quota = RoomIssuanceQuota::new();
+        let start = quota.window_start;
+        for _ in 0..MAX_ROOM_CREATIONS_PER_MINUTE {
+            assert!(quota.permit(start));
+        }
+        assert!(!quota.permit(start), "thirty-third request must be rejected");
+        assert!(!quota.permit(start + Duration::from_secs(59)));
+        assert!(quota.permit(start + Duration::from_secs(60)));
+    }
+
+    #[tokio::test]
+    async fn temporary_room_endpoint_rejects_creation_flood() {
+        let state = AppState {
+            rooms: Arc::new(Rooms::default()),
+            slots: Arc::new(Semaphore::new(MAX_CONNECTIONS)),
+            auth: Arc::new(RoomAuth::from_hex(&"11".repeat(32)).unwrap()),
+            issuance: Arc::new(Mutex::new(RoomIssuanceQuota::new())),
+        };
+        for _ in 0..MAX_ROOM_CREATIONS_PER_MINUTE {
+            assert!(create_temporary_room(State(state.clone()), HeaderMap::new()).await.is_ok());
+        }
+        assert!(matches!(
+            create_temporary_room(State(state), HeaderMap::new()).await,
+            Err(StatusCode::TOO_MANY_REQUESTS)
+        ));
+    }
+
+    #[test]
+    fn limits_incoming_frames_per_session() {
+        let mut quota = MessageQuota::new();
+        let origin = quota.window_start;
+        for _ in 0..MAX_MESSAGES_PER_SECOND {
+            assert!(quota.permit(origin));
+        }
+        assert!(!quota.permit(origin), "burst must not exceed 20 frames per second");
+        assert!(quota.permit(origin + Duration::from_secs(1)));
+    }
+
+    #[test]
+    fn local_dev_page_contains_no_external_resources_and_has_pdf_action() {
+        let html = include_str!("../public/index.html");
+        assert!(include_str!("../public/app.mjs").contains("window.print()"));
+        assert!(html.contains("ÄÖÜ"));
+        assert!(html.contains("EXPERIMENTELLE AES-GCM- UND P-256-SIGNATUREN"));
+        assert!(include_str!("../public/app.mjs").contains("identity.mjs"));
+        assert!(html.contains("app.mjs"));
+        assert!(!html.contains("<script type=\"module\">"));
+        assert!(include_str!("main.rs").contains("script-src \'self\';"));
+        assert!(html.contains("session.mjs") || include_str!("../public/app.mjs").contains("session.mjs"));
+        let app = include_str!("../public/app.mjs");
+        assert!(app.contains("verifyMessage("));
+        assert!(app.contains("encryptPacket("));
+        assert!(app.contains("decryptPacket("));
+        assert!(!html.contains("https://"));
+        assert!(!html.contains("http://"));
+        assert!(!html.contains("localStorage"));
+    }
+
+    #[tokio::test]
+    async fn active_temporary_room_disconnects_at_expiry() {
+        use tokio_tungstenite::{connect_async, tungstenite::client::IntoClientRequest};
+        use tokio::time::timeout;
+        let auth = Arc::new(RoomAuth::from_hex(&"11".repeat(32)).unwrap());
+        let state = AppState {
+            rooms: Arc::new(Rooms::default()),
+            slots: Arc::new(Semaphore::new(MAX_CONNECTIONS)),
+            auth: auth.clone(),
+            issuance: Arc::new(Mutex::new(RoomIssuanceQuota::new())),
+        };
+        // Create a valid temporary room whose six-hour lifetime ends shortly.
+        let created = unix_seconds().saturating_sub(TEMP_ROOM_TTL_SECONDS - 3);
+        let id = format!("ee{:08x}{}", created as u32, "ab".repeat(11));
+        let token = auth.issue(&id).unwrap();
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move { axum::serve(listener, router(state)).await.unwrap(); });
+        let mut request = format!("ws://{address}/ws/{id}").into_client_request().unwrap();
+        request.headers_mut().insert(
+            SEC_WEBSOCKET_PROTOCOL,
+            format!("picto.v1, auth.{token}").parse().unwrap()
+        );
+        let (mut socket, _) = connect_async(request).await.unwrap();
+        let ended = timeout(Duration::from_secs(6), socket.next()).await
+            .expect("expired temporary room must close active WebSocket");
+        assert!(matches!(ended, None | Some(Ok(tokio_tungstenite::tungstenite::Message::Close(_))) | Some(Err(_))));
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn real_websocket_rejects_wrong_capability_and_relays_for_valid_peers() {
+        use tokio_tungstenite::{connect_async, tungstenite::{client::IntoClientRequest, Message as ClientMessage}};
+        use tokio::time::{timeout, Duration};
+
+        let auth = Arc::new(RoomAuth::from_hex(&"11".repeat(32)).unwrap());
+        let room = "0123456789abcdef0123456789abcdef";
+        let token = auth.issue(room).unwrap();
+        let state = AppState {
+            rooms: Arc::new(Rooms::default()),
+            slots: Arc::new(Semaphore::new(MAX_CONNECTIONS)),
+            auth,
+            issuance: Arc::new(Mutex::new(RoomIssuanceQuota::new())),
+        };
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            axum::serve(listener, router(state)).await.unwrap();
+        });
+        let url = format!("ws://{address}/ws/{room}");
+
+        let make_request = |capability: &str| {
+            let mut request = url.as_str().into_client_request().unwrap();
+            request.headers_mut().insert(
+                SEC_WEBSOCKET_PROTOCOL,
+                format!("picto.v1, auth.{capability}").parse().unwrap()
+            );
+            request
+        };
+
+        let invalid = timeout(Duration::from_secs(3), connect_async(make_request(&"00".repeat(32))))
+            .await.unwrap();
+        assert!(matches!(invalid, Err(tokio_tungstenite::tungstenite::Error::Http(response))
+            if response.status() == StatusCode::FORBIDDEN));
+
+        let (mut alice, alice_response) = timeout(Duration::from_secs(3), connect_async(make_request(&token)))
+            .await.unwrap().unwrap();
+        assert_eq!(alice_response.headers().get(SEC_WEBSOCKET_PROTOCOL).unwrap(), "picto.v1");
+        let (mut bob, _) = timeout(Duration::from_secs(3), connect_async(make_request(&token)))
+            .await.unwrap().unwrap();
+        let envelope = vec![2u8; pictochat_relay::MIN_ENVELOPE_BYTES];
+        alice.send(ClientMessage::Binary(envelope.clone().into())).await.unwrap();
+        let received = timeout(Duration::from_secs(3), bob.next()).await.unwrap().unwrap().unwrap();
+        assert_eq!(received.into_data().as_ref(), envelope.as_slice());
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn temporary_room_issues_valid_expiring_bearer() {
+        use axum::extract::State;
+        let auth = Arc::new(RoomAuth::from_hex(&"11".repeat(32)).unwrap());
+        let state = AppState {
+            rooms: Arc::new(Rooms::default()),
+            slots: Arc::new(Semaphore::new(MAX_CONNECTIONS)),
+            auth: auth.clone(),
+            issuance: Arc::new(Mutex::new(RoomIssuanceQuota::new())),
+        };
+        let (_, json) = create_temporary_room(State(state), HeaderMap::new()).await.unwrap();
+        let value: serde_json::Value = serde_json::from_str(&json).unwrap();
+        let id = value["roomId"].as_str().unwrap();
+        let token = value["token"].as_str().unwrap();
+        assert!(id.starts_with("ee"));
+        assert_eq!(id.len(), 32);
+        assert!(auth.verify(id, token));
+        assert!(!temporary_room_is_expired(id));
+        assert_eq!(value["expiresAt"].as_u64().unwrap(), unix_seconds() + TEMP_ROOM_TTL_SECONDS);
+        let old = format!("ee{:08x}{}", (unix_seconds() - TEMP_ROOM_TTL_SECONDS - 1) as u32, "aa".repeat(11));
+        assert!(temporary_room_is_expired(&old));
+        let future = format!("ee{:08x}{}", (unix_seconds() + 1000) as u32, "bb".repeat(11));
+        assert!(temporary_room_is_expired(&future));
+    }
+
+    #[test]
+    fn room_admission_requires_exact_capability() {
+        let auth = RoomAuth::from_hex(&"11".repeat(32)).unwrap();
+        let room = "0123456789abcdef0123456789abcdef";
+        let other = "ffffffffffffffffffffffffffffffff";
+        let token = auth.issue(room).unwrap();
+        let mut headers = HeaderMap::new();
+        assert!(!room_capability_valid(&headers, room, &auth));
+        headers.insert(SEC_WEBSOCKET_PROTOCOL, HeaderValue::from_str(&format!("picto.v1, auth.{token}")).unwrap());
+        assert!(room_capability_valid(&headers, room, &auth));
+        assert!(!room_capability_valid(&headers, other, &auth));
+        headers.insert(SEC_WEBSOCKET_PROTOCOL, HeaderValue::from_static("picto.v1, auth.bad"));
+        assert!(!room_capability_valid(&headers, room, &auth));
+        headers.insert(SEC_WEBSOCKET_PROTOCOL, HeaderValue::from_str(&format!("picto.v1, auth.{token}, auth.{token}")).unwrap());
+        assert!(!room_capability_valid(&headers, room, &auth));
+    }
+
+    #[test]
+    fn forbids_foreign_browser_origins() {
+        let mut headers = HeaderMap::new();
+        headers.insert(ORIGIN, HeaderValue::from_static("https://evil.example"));
+        assert!(!origin_is_allowed(&headers));
+        headers.insert(ORIGIN, HeaderValue::from_static("null"));
+        assert!(!origin_is_allowed(&headers));
+        headers.insert(ORIGIN, HeaderValue::from_static("http://localhost:8787"));
+        assert!(origin_is_allowed(&headers));
+        headers.insert(ORIGIN, HeaderValue::from_static("http://127.0.0.1:8787"));
+        assert!(origin_is_allowed(&headers));
+    }
+
+    #[test]
+    fn session_quota_enforces_rate_and_resets() {
+        let mut quota = MessageQuota::new();
+        let start = quota.window_start;
+        for _ in 0..MAX_MESSAGES_PER_SECOND {
+            assert!(quota.permit(start));
+        }
+        assert!(!quota.permit(start));
+        assert!(quota.permit(start + Duration::from_secs(1)));
+    }
+
+    #[tokio::test]
+    async fn session_slots_are_bounded_and_released() {
+        let slots = Arc::new(Semaphore::new(1));
+        let first = slots.clone().try_acquire_owned().unwrap();
+        assert!(slots.clone().try_acquire_owned().is_err());
+        drop(first);
+        assert!(slots.clone().try_acquire_owned().is_ok());
+    }
+
+    #[test]
+    fn permits_headless_client_without_origin() {
+        assert!(origin_is_allowed(&HeaderMap::new()));
+    }
+}
