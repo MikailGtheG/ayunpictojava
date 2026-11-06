@@ -101,6 +101,19 @@ async function main() {
 
     await screenshotSafe(alice, "pictochat-desktop");
 
+    // Validate the same print stylesheet used by the user-triggered PDF action.
+    await alice.emulateMedia({ media: "print" });
+    assert.equal(await alice.locator("#messages .entry").count(), 2);
+    assert.equal(await alice.locator(".editor").isVisible(), false);
+    assert.equal(await alice.locator("#messages .entry img").count(), 1);
+    await alice.pdf({
+      path: `${screenshots}/pictochat-print-demo.pdf`,
+      format: "A4",
+      printBackground: true,
+      preferCSSPageSize: true,
+    });
+    await alice.emulateMedia({ media: "screen" });
+
     const mobileContext = await browser.newContext({ ...devices["iPhone 13"], browserName: undefined });
     mobile = await mobileContext.newPage();
     mobile.on("pageerror", error => errors.push(error.message));
@@ -142,6 +155,7 @@ async function main() {
     assert.equal(await alice.locator("#token").inputValue(), "");
     console.log("Visual browser acceptance passed: two peers, Unicode, sketches, reply, mobile and local clearing.");
     console.log("Screenshot artifacts: screenshots/pictochat-desktop.png and screenshots/pictochat-mobile.png");
+    console.log("PDF print proof: screenshots/pictochat-print-demo.pdf");
   } finally {
     await browser.close();
   }
