@@ -1,4 +1,4 @@
-name: PictoChat visual and PDF acceptance
+name: PictoRust original pixel PDF and browser
 on:
   push:
     branches:
@@ -58,7 +58,7 @@ jobs:
           done
           cat screenshots/relay.log
           exit 1
-      - name: Verify rendered A4 PDF and produce page preview
+      - name: Verify pixel-exact PDF and render an original-size preview
         run: |
           set -euo pipefail
           if ! command -v pdfinfo >/dev/null || ! command -v pdftoppm >/dev/null; then
@@ -66,30 +66,33 @@ jobs:
             sudo apt-get install -y -qq poppler-utils
           fi
           test -s screenshots/pictochat-print-demo.pdf
+          test -s screenshots/pictorust-export-page-1.png
           pdfinfo screenshots/pictochat-print-demo.pdf > screenshots/pdfinfo.txt
           grep -Eq 'Pages: +1' screenshots/pdfinfo.txt
-          grep -Eq 'Page size: +59[0-9].*84[0-9].*pts' screenshots/pdfinfo.txt
+          grep -Eq 'Page size: +192 x 144 pts' screenshots/pdfinfo.txt
+          # There must be no notes, captions, metadata labels or selectable document text:
+          # all visual content is ONE rasterized original PictoChat screen.
           pdftotext -layout screenshots/pictochat-print-demo.pdf screenshots/print-text.txt
-          grep -q 'PictoChat' screenshots/print-text.txt
-          grep -q 'Merhaba' screenshots/print-text.txt
-          grep -q 'Hallo' screenshots/print-text.txt
-          if grep -Eq 'Einladungstoken|Separater Chat-Schlüssel|trusted-fingerprints' screenshots/print-text.txt; then
-            echo 'Session secrets appeared in printable content' >&2
+          if grep -Eq '[[:alnum:]]' screenshots/print-text.txt; then
+            echo 'Unexpected non-PictoChat document text embedded in PDF' >&2
             exit 1
           fi
-          pdftoppm -f 1 -l 1 -r 120 -singlefile -png screenshots/pictochat-print-demo.pdf screenshots/pictochat-print-preview
+          pdfimages -list screenshots/pictochat-print-demo.pdf > screenshots/pdf-images.txt
+          grep -Eq '^ *1 +0 +image +[0-9]+ +256 +192 ' screenshots/pdf-images.txt
+          pdftoppm -f 1 -l 1 -r 96 -singlefile -png screenshots/pictochat-print-demo.pdf screenshots/pictochat-print-preview
           test -s screenshots/pictochat-print-preview.png
-          echo 'Validated rendered, searchable one-page A4 PDF.'
+          echo 'Validated original 256x192 raster PictoChat PDF, no captions or overlays.'
       - name: Upload visual proofs and logs
         if: always()
         id: artifact
         uses: actions/upload-artifact@v4
         with:
-          name: pictochat-visual-pdf-${{ github.run_id }}
+          name: pictorust-pixel-export-${{ github.run_id }}
           path: |
             server/screenshots/*.png
             server/screenshots/*.pdf
             server/screenshots/pdfinfo.txt
+            server/screenshots/pdf-images.txt
             server/screenshots/print-text.txt
             server/screenshots/relay.log
           retention-days: 14
@@ -100,11 +103,11 @@ jobs:
           ARTIFACT_URL: ${{ steps.artifact.outputs.artifact-url }}
         run: |
           {
-            echo '## PictoChat visual and PDF acceptance'
+            echo '## PictoRust original pixel export verification'
             echo ''
-            echo 'Download the original lobby, stage, desktop/mobile screenshots, A4 PDF and its independently rendered PNG preview:'
+            echo 'Download the original lobby, stage, desktop/mobile screenshots, PictoChat raster PDF and a pixel-size PNG preview:'
             echo ''
             echo "[Download screenshots and verified PDF](${ARTIFACT_URL})"
             echo ''
-            echo 'The original DS interface is unchanged by print styling. The PDF uses a separate paginated DOM, with no room credentials.'
+            echo 'The PDF contains only original 256x192 pixel screens, without headings, notes, account credentials or A4 chat cards.'
           } >> "$GITHUB_STEP_SUMMARY"
