@@ -7,6 +7,14 @@ use tokio::sync::{broadcast, OwnedSemaphorePermit, Semaphore};
 pub const MAX_FRAME_BYTES: usize = 16 * 1024;
 /// Protocol v2 signed-message wire envelope: version byte + 96-bit IV + >=128-bit GCM tag.
 pub const MIN_ENVELOPE_BYTES: usize = 1 + 12 + 16;
+/// MLS transport framing: [version=3, kind=1..=4, opaque TLS serialized bytes].
+/// The server does not decrypt or authenticate MLS content.
+pub const MLS_FRAME_VERSION: u8 = 3;
+pub const MLS_MIN_FRAME_BYTES: usize = 3;
+pub const MLS_KIND_APPLICATION: u8 = 1;
+pub const MLS_KIND_COMMIT: u8 = 2;
+pub const MLS_KIND_WELCOME: u8 = 3;
+pub const MLS_KIND_KEY_PACKAGE: u8 = 4;
 pub const ROOM_CAPACITY: usize = 32;
 pub const MAX_ACTIVE_ROOMS: usize = 256;
 pub const MAX_PARTICIPANTS_PER_ROOM: usize = 16;
@@ -38,7 +46,13 @@ impl Room {
 
 /// Checks wire format only. It cannot authenticate ciphertext; that is done by the client.
 pub fn valid_envelope(bytes: &[u8]) -> bool {
-    bytes.len() >= MIN_ENVELOPE_BYTES && bytes.len() <= MAX_FRAME_BYTES && bytes[0] == 2
+    if bytes.len() > MAX_FRAME_BYTES { return false; }
+    match bytes.first() {
+        Some(2) => bytes.len() >= MIN_ENVELOPE_BYTES,
+        Some(&MLS_FRAME_VERSION) => bytes.len() >= MLS_MIN_FRAME_BYTES &&
+            matches!(bytes[1], MLS_KIND_APPLICATION | MLS_KIND_COMMIT | MLS_KIND_WELCOME | MLS_KIND_KEY_PACKAGE),
+        _ => false,
+    }
 }
 
 #[derive(Default)]
@@ -95,6 +109,14 @@ mod tests {
         assert!(room.publish(vec![2; MIN_ENVELOPE_BYTES - 1]).is_err());
         assert!(room.publish(vec![1; MIN_ENVELOPE_BYTES]).is_err());
         assert!(room.publish(vec![2; MIN_ENVELOPE_BYTES]).is_ok());
+        assert!(room.publish(vec![3, MLS_KIND_APPLICATION, 42]).is_ok());
+        assert!(room.publish(vec![3, MLS_KIND_COMMIT, 42]).is_ok());
+        assert!(room.publish(vec![3, MLS_KIND_WELCOME, 42]).is_ok());
+        assert!(room.publish(vec![3, MLS_KIND_KEY_PACKAGE, 42]).is_ok());
+        assert!(room.publish(vec![3, 0, 42]).is_err());
+        assert!(room.publish(vec![3, 5, 42]).is_err());
+        assert!(room.publish(vec![3, 1]).is_err());
+        assert!(room.publish(vec![3, 1, 42].into_iter().chain(vec![0u8; MAX_FRAME_BYTES].into_iter()).collect()).is_err());
     }
 
     #[test]
