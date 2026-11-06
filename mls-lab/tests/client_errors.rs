@@ -1,4 +1,4 @@
-use pictochat_mls_lab::client::{Client, KIND_APPLICATION, KIND_COMMIT, KIND_WELCOME, wrap, unwrap, MAX_WIRE_SIZE};
+use pictochat_mls_lab::client::{Client, KIND_APPLICATION, KIND_COMMIT, KIND_WELCOME, wrap, unwrap, MAX_WIRE_SIZE, MAX_APPLICATION_PLAINTEXT_BYTES};
 
 #[test]
 fn invalid_states_return_errors_without_panicking() {
@@ -17,6 +17,8 @@ fn invalid_states_return_errors_without_panicking() {
     assert!(alice.start_group().is_err());
     assert!(alice.send(b"").is_err());
     assert!(alice.send(&vec![b'a'; MAX_WIRE_SIZE]).is_err());
+    assert!(alice.send(&vec![b'a'; MAX_APPLICATION_PLAINTEXT_BYTES + 1]).is_err());
+    assert!(alice.send(b"valid after invalid request").is_ok());
     assert!(alice.accept_welcome(&[3, KIND_WELCOME, 0], alice.ratchet_tree().unwrap()).is_err());
 }
 #[test]
