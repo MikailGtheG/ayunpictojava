@@ -5,10 +5,9 @@ import { preparePictoRustPrint } from "./pictorust-export.mjs";
 "use strict";
 const $=id=>document.getElementById(id);
 const room=$("room"),token=$("token"),status=$("status"),messages=$("messages");
-const printMessages=document.getElementById("print-messages");
 const localExportPages=document.getElementById("pixel-print");
 const volatileMessages=[];
-function clearLocalMessages(){messages.replaceChildren();printMessages.replaceChildren();localExportPages.replaceChildren();volatileMessages.length=0;lastReceivedData=null;}
+function clearLocalMessages(){messages.replaceChildren();localExportPages.replaceChildren();volatileMessages.length=0;lastReceivedData=null;}
 const canvas=$("drawing"),ctx=canvas.getContext("2d"),encoder=new TextEncoder(),decoder=new TextDecoder("utf-8",{fatal:true});
 let socket=null,strokes=[],current=null,roomKey=null,replayGuard=null,sessionIdentity=null,trustedPeers=null;
 const MAX_BYTES=16384,MAX_POINTS=1200;
@@ -236,27 +235,6 @@ function render(data,who){
    for(const stroke of data.strokes)line(stroke,context);
    const image=document.createElement("img");image.alt="Gezeichnete Nachricht";image.src=painting.toDataURL("image/png");div.append(image);
  }
- // Build a SECOND, linear, A4-safe representation. Never move or restyle
- // the interactive 256x384 PictoChat screen for printing.
- const paper=document.createElement("article");paper.className="print-message";
- paper.style.setProperty("--print-color","#454591");
- paper.style.setProperty("--print-accent","#eaeafb");
- const sender=document.createElement("div");sender.className="print-sender";
- sender.textContent=sanitizeNickname(data.nickname);
- paper.append(sender);
- if(data.text){
-  const paragraph=document.createElement("p");paragraph.className="print-text";
-  paragraph.textContent=data.text;paper.append(paragraph);
- }
- const drawing=div.querySelector("img");
- if(drawing){
-  const printedDrawing=document.createElement("img");
-  printedDrawing.className="print-drawing";
-  printedDrawing.alt="Zeichnung";
-  printedDrawing.src=drawing.src;
-  paper.append(printedDrawing);
- }
- printMessages.append(paper);
  messages.append(div);messages.scrollTop=messages.scrollHeight;
 }
 function valid(data){
