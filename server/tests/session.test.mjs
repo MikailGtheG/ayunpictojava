@@ -30,12 +30,13 @@ test("TypeScript session module exactly matches shipped browser implementation",
 });
 test("DS-style UI provides temporary room controls, undo and clearing on leave",()=>{
  const html=readFileSync(new URL("../public/index.html",import.meta.url),"utf8");
+ const app=readFileSync(new URL("../public/app.mjs",import.meta.url),"utf8");
  assert.match(html,/class="device"/);
  assert.match(html,/class="hinge"/);
  assert.match(html,/id="new-room"/);
  assert.match(html,/id="nickname"/);
  assert.match(html,/id="undo"/);
- assert.match(html,/room\.value=randomRoomId\(\)/);
- assert.match(html,/messages\.replaceChildren\(\)/);
+ assert.match(app,/room\.value=randomRoomId\(\)/);
+ assert.match(app,/messages\.replaceChildren\(\)/);
  assert.doesNotMatch(html,/localStorage|sessionStorage|indexedDB/);
 });
