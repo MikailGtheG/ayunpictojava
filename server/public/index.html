@@ -294,6 +294,36 @@ button:disabled{opacity:.5;cursor:default}
 /* Print is an independent document; never stretch the 256x384 absolute stage to A4. */
 #print-document{display:none}
 @page{size:A4;margin:17mm 16mm 19mm}
+/* Lobby polish: keep the original 256x384 room sprites, but align the
+   temporary-room workflow to the unused gap above Chat Room A (y=224). */
+#lobby #new-room{
+  left:12.109375%;top:42.1875%;width:75%;height:6.25%;
+  border:2px solid #5d6187;border-radius:3px;
+  background:linear-gradient(180deg,#fcfcff 0%,#ededf5 58%,#c8c8d8 100%);
+  color:#242448;font-size:clamp(10px,1.7vw,14px);
+  box-shadow:inset 1px 1px #fff,1px 2px #888;
+}
+#lobby #connect{
+  left:12.109375%;top:49.73958333%;width:75%;height:6.25%;
+  border:2px solid #516b6b;border-radius:3px;
+  background:linear-gradient(180deg,#f1fff7 0%,#d6eadf 60%,#b3d2c0 100%);
+  color:#213e36;font-size:clamp(10px,1.7vw,14px);
+  box-shadow:inset 1px 1px #fff,1px 2px #779080;
+}
+#lobby #new-room:focus-visible,#lobby #connect:focus-visible{
+  outline:2px solid #262483;outline-offset:2px;
+}
+#lobby #new-room:hover{filter:brightness(1.03)}
+#lobby #connect:hover{filter:brightness(1.035)}
+#lobby .lobby-note{
+  left:12.109375%;top:56.51041667%;width:75%;height:1.4%;
+  font-size:clamp(7px,1vw,9px);line-height:1;color:#41415d;
+  text-shadow:0 1px white;white-space:nowrap;text-align:center;
+}
+#lobby .room-buttons button[aria-pressed="true"]{
+  outline:2px solid #5252ab;outline-offset:-3px;
+  box-shadow:inset 4px 0 0 #6262ba;filter:brightness(.99);
+}
 @media print{
   html,body{height:auto!important;min-height:0!important;width:auto!important;margin:0!important;padding:0!important;background:#fff!important;color:#151724!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
   #page{display:none!important}
@@ -464,7 +494,7 @@ button:disabled{opacity:.5;cursor:default}
       <button type="button" id="connect">Verbinden</button>
       <button type="button" id="disconnect" disabled>Trennen</button>
     </div>
-    <p class="lobby-note">Temporäre Räume. Keine Konten. Sicherheitseinstellungen unter dem Bildschirm.</p>
+    <p class="lobby-note">Temporär · Ohne Konto · Ende-zu-Ende-Testbetrieb</p>
   </section>
 </div>
 <details id="security-panel" open>
