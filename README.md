@@ -2,9 +2,27 @@
 
 **PictoRust** is the new name for the ongoing Rust and TypeScript modernization of the original Nintendo DS PictoChat browser implementation.
 
+> **Original creator credit:** This project is derived from [ayunami2000/ayunpictojava](https://github.com/ayunami2000/ayunpictojava). The original Java/browser work, DS sprites and bundled font are retained with attribution. See [CREDITS.md](CREDITS.md) for rights and provenance; this fork is independent and unaffiliated with Nintendo.
+
+## Visual verification
+
+The screenshot and PDF integration workflow renders a real two-peer browser session with the original DS assets, Unicode and drawings, then checks print pagination at A4 dimensions. Its review artifacts contain:
+
+- `pictochat-original-lobby.png` – original room selection with updated session controls.
+- `pictochat-original-top-messages.png` – framed text, drawing and bilingual chat in the top DS screen.
+- `pictochat-original-stage.png` – full original two-screen layout.
+- `pictochat-original-draft-box.png` – pen/drawing field and original frame.
+- `pictochat-mobile.png` – narrow-screen viewport verification.
+- `pictorust-export-page-1.png` – high-resolution nearest-neighbor source raster.
+- `pictochat-print-preview.png` – actual Chromium PDF page rendered to PNG.
+- `pictochat-print-demo.pdf`, `pictorust-multipage-demo.pdf` – downloadable print proofs.
+
+**View the latest real screenshots and print proof:** [Browser & PDF workflow](https://github.com/MikailGtheG/pictorust/actions/workflows/pictochat-browser-screenshots.yml).
+The workflow produces new review artifacts on each tested update; do not substitute mockups for test screenshots.
+
 The modern client is in `frontend/`, the volatile Rust relay is in `server/`, and the independent OpenMLS security laboratory is in `mls-lab/`. The graphical interface reuses the original fork's PictoChat sprites and pixel font.
 
-**PictoRust PDF export:** renders a continuous original-width Nintendo DS sprite chat strip, without resetting the conversation at each 192-pixel screen. Each 256×520 logical raster is nearest-neighbor scaled to 512×1040 CSS pixels and centered on an A4 portrait page. Message frames stay intact across page boundaries. Original nds.ttf font and sprite backgrounds are used; no headers, footers, explanatory notes, access tokens or document-style cards. Browser export is client-only. The local browser holds the history only for the active session.
+**PictoRust PDF export:** renders a continuous original-width Nintendo DS sprite chat strip, without resetting the conversation at each 192-pixel screen. Each 256×520 logical raster is rendered from integer-aligned glyph bitmaps and pre-upscaled 4× into a 1024×2080 PNG, then printed at 512×1040 CSS pixels and centered on an A4 portrait page. Message frames stay intact across page boundaries. Original nds.ttf font and sprite backgrounds are used; no headers, footers, explanatory notes, access tokens or document-style cards. Browser export is client-only. The local browser holds the history only for the active session.
 
 This development branch is not ready for a public deployment: OpenMLS is not yet integrated into the shipping browser. The original Java implementation remains below for historical compatibility.
 
