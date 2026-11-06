@@ -16,6 +16,23 @@ $("new-room").addEventListener("click",()=>{
  setStatus("Neuer temporärer Raum erzeugt. Raum-ID und Zugangstoken getrennt teilen.");
 });
 $("nickname").value="Gast";
+$("copy-room").addEventListener("click",async()=>{
+ try{
+  await navigator.clipboard.writeText(room.value.trim());
+  setStatus("Temporäre Raum-ID kopiert. Für Zugang weiterhin separates Token erforderlich.");
+ }catch{setStatus("Zwischenablage nicht verfügbar; Raum-ID bitte manuell kopieren.");}
+});
+document.querySelectorAll("#touch-keys [data-char]").forEach(button=>{
+ button.addEventListener("click",()=>{
+  const field=$("text");
+  const ch=button.getAttribute("data-char");
+  if(!ch)return;
+  const start=field.selectionStart,end=field.selectionEnd;
+  const next=field.value.slice(0,start)+ch+field.value.slice(end);
+  if(Array.from(next).length>2000)return;
+  field.value=next;field.focus();field.setSelectionRange(start+ch.length,start+ch.length);
+ });
+});
 async function renewIdentity(){
  if(socket)return;
  $("connect").disabled=true;
