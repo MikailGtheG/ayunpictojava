@@ -159,6 +159,24 @@ async function main() {
     await bob.locator("#send").click();
     await alice.locator("#messages .entry").nth(1).waitFor({ timeout: 15_000 });
     assert.match(await alice.locator("#messages").innerText(), /Hallo zurück!/);
+    const messageGeometry = await alice.evaluate(() => {
+      const stage = document.getElementById("picto").getBoundingClientRect();
+      const messages = document.getElementById("messages");
+      const last = messages.querySelector(".entry:last-child").getBoundingClientRect();
+      const first = messages.querySelector(".entry:first-child");
+      const background = getComputedStyle(first).backgroundImage;
+      return {
+        bottomOriginalPixels: (last.bottom-stage.top)/(stage.height/384),
+        firstClass:first.className,
+        background,
+        secondClass:messages.querySelector(".entry:last-child").className,
+      };
+    });
+    assert.ok(Math.abs(messageGeometry.bottomOriginalPixels-189)<2,
+      `messages must stack against original y=189 PIXI boundary, got ${messageGeometry.bottomOriginalPixels}`);
+    assert.match(messageGeometry.firstClass,/lines-5/);
+    assert.match(messageGeometry.background,/box_bg5\.png/);
+    assert.match(messageGeometry.secondClass,/lines-2/);
 
     assert.match(await alice.locator(".bottom-screen").evaluate(el => getComputedStyle(el).backgroundImage), /drawui\.png/);
     await screenshotSafe(alice, "pictochat-desktop");
