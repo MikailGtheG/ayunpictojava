@@ -58,7 +58,7 @@ jobs:
           done
           cat screenshots/relay.log
           exit 1
-      - name: Verify pixel-exact PDF and render an original-size preview
+      - name: Verify pixel-exact PDF and render an A4-size preview
         run: |
           set -euo pipefail
           if ! command -v pdfinfo >/dev/null || ! command -v pdftoppm >/dev/null; then
@@ -84,7 +84,7 @@ jobs:
           test -s screenshots/pictorust-multipage-demo.pdf
           pdfinfo screenshots/pictorust-multipage-demo.pdf > screenshots/multipage-pdfinfo.txt
           grep -Eq 'Pages: +1' screenshots/multipage-pdfinfo.txt
-          grep -Eq 'Page size: +192 x 144 pts' screenshots/multipage-pdfinfo.txt
+          grep -Eq 'Page size: +595[.0-9]* x 842[.0-9]* pts' screenshots/multipage-pdfinfo.txt
           pdftotext screenshots/pictorust-multipage-demo.pdf screenshots/multipage-text.txt
           if grep -Eq '[[:alnum:]]' screenshots/multipage-text.txt; then exit 1; fi
           pdfimages -list screenshots/pictorust-multipage-demo.pdf > screenshots/multipage-images.txt
