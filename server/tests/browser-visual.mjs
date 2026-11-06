@@ -70,6 +70,7 @@ async function main() {
         board: get("writing-board"), send: get("send"), copy: get("copy-last"),
         clear: get("erase"), scrollUp: get("scroll-up"), scrollDown: get("scroll-down"),
         pen: get("pen-tool"), eraser: get("eraser-tool"),
+        exit: get("exit-internal"), signal: get("connection-icon"), badge: get("room-letter"),
         keyBoxes: keys.map(el => {
           const r = el.getBoundingClientRect();
           return [(r.x-stage.x)/sx,(r.y-stage.y)/sy,r.width/sx,r.height/sy];
@@ -83,6 +84,7 @@ async function main() {
       copy:[225,327,31,23], clear:[225,351,31,24],
       scrollUp:[2,194,14,14], scrollDown:[2,209,14,14],
       pen:[2,230,14,13], eraser:[2,244,14,13],
+      exit:[245,193,10,10], signal:[1,1,16,16], badge:[1,175,16,16],
     })) {
       geometry[name].forEach((value, i) =>
         assert.ok(Math.abs(value-expected[i]) < 0.8,
@@ -202,7 +204,7 @@ async function main() {
     assert.deepEqual(errors, [], "browser must not raise uncaught page errors");
 
     // Leave erases local chat messages and secrets in the active client.
-    await alice.locator("#leave-room").click();
+    await alice.locator("#exit-internal").click();
     await alice.waitForFunction(() =>
       document.querySelectorAll("#messages .entry").length === 0 &&
       document.getElementById("token").value === ""
