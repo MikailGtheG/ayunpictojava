@@ -314,6 +314,35 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn active_temporary_room_disconnects_at_expiry() {
+        use tokio_tungstenite::{connect_async, tungstenite::client::IntoClientRequest};
+        use tokio::time::timeout;
+        let auth = Arc::new(RoomAuth::from_hex(&"11".repeat(32)).unwrap());
+        let state = AppState {
+            rooms: Arc::new(Rooms::default()),
+            slots: Arc::new(Semaphore::new(MAX_CONNECTIONS)),
+            auth: auth.clone(),
+        };
+        // Create a valid temporary room whose six-hour lifetime ends shortly.
+        let created = unix_seconds().saturating_sub(TEMP_ROOM_TTL_SECONDS - 3);
+        let id = format!("ee{:08x}{}", created as u32, "ab".repeat(11));
+        let token = auth.issue(&id).unwrap();
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move { axum::serve(listener, router(state)).await.unwrap(); });
+        let mut request = format!("ws://{address}/ws/{id}").into_client_request().unwrap();
+        request.headers_mut().insert(
+            SEC_WEBSOCKET_PROTOCOL,
+            format!("picto.v1, auth.{token}").parse().unwrap()
+        );
+        let (mut socket, _) = connect_async(request).await.unwrap();
+        let ended = timeout(Duration::from_secs(6), socket.next()).await
+            .expect("expired temporary room must close active WebSocket");
+        assert!(matches!(ended, None | Some(Ok(Message::Close(_))) | Some(Err(_))));
+        server.abort();
+    }
+
+    #[tokio::test]
     async fn real_websocket_rejects_wrong_capability_and_relays_for_valid_peers() {
         use tokio_tungstenite::{connect_async, tungstenite::{client::IntoClientRequest, Message as ClientMessage}};
         use tokio::time::{timeout, Duration};
