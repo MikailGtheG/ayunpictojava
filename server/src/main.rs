@@ -133,7 +133,7 @@ async fn dev_home() -> ([(axum::http::header::HeaderName, &'static str); 5], &'s
         [
             (axum::http::header::CONTENT_TYPE, "text/html; charset=utf-8"),
             (axum::http::header::CACHE_CONTROL, "no-store"),
-            (axum::http::header::CONTENT_SECURITY_POLICY, "default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; connect-src ws://127.0.0.1:8787 ws://localhost:8787; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"),
+            (axum::http::header::CONTENT_SECURITY_POLICY, "default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; img-src data:; connect-src ws://127.0.0.1:8787 ws://localhost:8787; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"),
             (axum::http::header::REFERRER_POLICY, "no-referrer"),
             (axum::http::header::X_CONTENT_TYPE_OPTIONS, "nosniff"),
         ],
@@ -284,6 +284,8 @@ mod tests {
         assert!(html.contains("EXPERIMENTELLE AES-GCM- UND P-256-SIGNATUREN"));
         assert!(include_str!("../public/app.mjs").contains("identity.mjs"));
         assert!(html.contains("app.mjs"));
+        assert!(!html.contains("<script type=\"module\">"));
+        assert!(!dev_home().await.0[2].1.contains("script-src \'self\' \'unsafe-inline\'"));
         assert!(html.contains("session.mjs") || include_str!("../public/app.mjs").contains("session.mjs"));
         let app = include_str!("../public/app.mjs");
         assert!(app.contains("verifyMessage("));
