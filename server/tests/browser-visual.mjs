@@ -140,9 +140,9 @@ async function main() {
     const canvas = alice.locator("#drawing");
     const bounds = await canvas.boundingBox();
     assert.ok(bounds, "drawing surface should exist");
-    await alice.mouse.move(bounds.x + 20, bounds.y + 30);
+    await alice.mouse.move(bounds.x + 25, bounds.y + 90);
     await alice.mouse.down();
-    await alice.mouse.move(bounds.x + 140, bounds.y + 80, { steps: 15 });
+    await alice.mouse.move(bounds.x + 155, bounds.y + 135, { steps: 15 });
     await alice.mouse.up();
     await alice.locator("#writing-board").screenshot({
       path: `${screenshots}/pictochat-original-draft-box.png`,
@@ -169,6 +169,8 @@ async function main() {
     assert.match(draftSprites.outline,/box_outline5\.png/);
     assert.match(draftSprites.lines,/box_lines5\.png/);
     assert.equal(draftSprites.draftName,"Äysu");
+    const ruling = await alice.locator("#writing-board .rule-lines").evaluate(el=>getComputedStyle(el).backgroundImage);
+    assert.match(ruling,/repeating-linear-gradient/);
 
     await alice.locator("#send").click();
     await bob.locator("#messages .entry").first().waitFor({ timeout: 15_000 });
@@ -212,6 +214,17 @@ async function main() {
     assert.match(spriteComposition.lines,/box_lines5\.png/);
     assert.match(spriteComposition.outline,/box_outline5\.png/);
     assert.equal(spriteComposition.sender,"Äysu");
+    const tabsAndRules = await alice.locator("#messages .entry").evaluateAll(entries =>
+      entries.map(el => ({
+        sender:el.querySelector(".who").getBoundingClientRect().height,
+        lines:getComputedStyle(el.querySelector(".rule-lines")).backgroundImage,
+      }))
+    );
+    assert.equal(tabsAndRules.length,2);
+    for (const entry of tabsAndRules) {
+      assert.ok(entry.sender >= 25, "short message must not clip 15px DS sender tab");
+      assert.match(entry.lines,/repeating-linear-gradient/);
+    }
     await alice.locator(".top-screen").screenshot({
       path: `${screenshots}/pictochat-original-top-messages.png`,
       animations: "disabled",
