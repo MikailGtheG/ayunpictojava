@@ -45,7 +45,14 @@ const GLYPH_SIZE = 20;
 const GLYPH_BASELINE = 13;
 function createPixelFont(ctx) {
   const cache = new Map();
-  const widthOf = character => Math.max(1, Math.ceil(ctx.measureText(character).width));
+  const isEmoji = character => /\p{Extended_Pictographic}/u.test(character);
+  const widthOf = character => {
+    const original = ctx.font;
+    if (isEmoji(character)) ctx.font = '10px "Noto Color Emoji", "Segoe UI Emoji", sans-serif';
+    const result = Math.max(1, Math.ceil(ctx.measureText(character).width));
+    ctx.font = original;
+    return result;
+  };
   function glyph(character) {
     if (cache.has(character)) return cache.get(character);
     const advance = widthOf(character);
@@ -53,12 +60,13 @@ function createPixelFont(ctx) {
     canvas.width = Math.max(advance + 5, 24);
     canvas.height = GLYPH_SIZE;
     const g = canvas.getContext("2d", { willReadFrequently: true });
-    g.font = '10px "nds"';
+    const emoji = isEmoji(character);
+    g.font = emoji ? '10px "Noto Color Emoji", "Segoe UI Emoji", sans-serif' : '10px "nds"';
     g.textBaseline = "alphabetic";
     g.fillStyle = "#fff";
     g.fillText(character, 1, GLYPH_BASELINE);
     const imageData = g.getImageData(0, 0, canvas.width, canvas.height);
-    for (let i = 0; i < imageData.data.length; i += 4) {
+    for (let i = 0; !emoji && i < imageData.data.length; i += 4) {
       const on = imageData.data[i + 3] >= 112 ? 255 : 0;
       imageData.data[i] = 255;
       imageData.data[i + 1] = 255;
@@ -66,7 +74,7 @@ function createPixelFont(ctx) {
       imageData.data[i + 3] = on;
     }
     g.putImageData(imageData, 0, 0);
-    const item = { canvas, advance };
+    const item = { canvas, advance, emoji };
     cache.set(character, item);
     return item;
   }
@@ -75,21 +83,25 @@ function createPixelFont(ctx) {
   }
   function draw(target, text, x, top, color) {
     const penX = Math.round(x), penY = Math.round(top);
-    const palette = document.createElement("canvas");
-    palette.width = Math.max(1, width(text) + 6);
-    palette.height = GLYPH_SIZE;
-    const p = palette.getContext("2d");
-    p.imageSmoothingEnabled = false;
     let pos = 0;
     for (const char of Array.from(text)) {
       const bitmap = glyph(char);
-      p.drawImage(bitmap.canvas, pos, 0);
+      if (bitmap.emoji) {
+        // Preserve native colored emoji instead of tinting them monochrome.
+        target.drawImage(bitmap.canvas, penX + pos, penY);
+      } else {
+        const colored = document.createElement("canvas");
+        colored.width = bitmap.canvas.width;
+        colored.height = bitmap.canvas.height;
+        const colorCtx = colored.getContext("2d");
+        colorCtx.drawImage(bitmap.canvas, 0, 0);
+        colorCtx.globalCompositeOperation = "source-in";
+        colorCtx.fillStyle = color;
+        colorCtx.fillRect(0, 0, colored.width, colored.height);
+        target.drawImage(colored, penX + pos, penY);
+      }
       pos += bitmap.advance;
     }
-    p.globalCompositeOperation = "source-in";
-    p.fillStyle = color;
-    p.fillRect(0, 0, palette.width, palette.height);
-    target.drawImage(palette, penX, penY);
   }
   return { width, draw };
 }
