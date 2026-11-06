@@ -93,6 +93,12 @@ function drawBox(ctx, part, x, y, sprites) {
   const key = part.size;
   ctx.drawImage(sprites["box_bg" + key + ".png"], x, y, 234, height);
   drawTinted(ctx, sprites["box_lines" + key + ".png"], x, y, 234, height, "#b7b7dc");
+  // Chromium/Pixi multiply-lined backgrounds use 1 logical-pixel rules at
+  // 16px intervals. Sprite alpha alone does not retain these faint lines.
+  ctx.fillStyle = "#b7b7dc";
+  for (let dy = 19; dy < height - 1; dy += 16) {
+    ctx.fillRect(x + 4, y + dy, 226, 1);
+  }
   // Real original outlines are alpha-mask sprites, NOT four CSS border lines.
   drawTinted(ctx, sprites["box_outline" + key + ".png"], x, y, 234, height, "#07068b");
 
