@@ -1,9 +1,10 @@
 // PictoRust: client-only, deterministic original-PictoChat pixel export.
-// Produces ONE 256x192 top-screen PNG per page, with no external PDF library,
+// Produces a continuous pixel-accurate 256px-wide chat strip per A4 page, with no external PDF library,
 // captions, metadata text, credentials or network persistence.
 export const WIDTH = 256;
-export const HEIGHT = 192;
-const BOTTOM = 189;
+export const HEIGHT = 520;
+const CONTENT_TOP = 14;
+const CONTENT_BOTTOM = 510;
 const FRAMES = [0, 22, 38, 54, 70, 85];
 const SPRITE_DIR = "/original/images/";
 const ALLOWED = /^[a-z0-9_]+\.png$/;
@@ -64,7 +65,7 @@ function groupPages(parts) {
   let current = [], height = 0;
   for (const part of parts) {
     const h = FRAMES[part.size];
-    if (current.length && height + h > BOTTOM) {
+    if (current.length && height + h > CONTENT_BOTTOM - CONTENT_TOP) {
       pages.push(current);
       current = [];
       height = 0;
@@ -127,18 +128,18 @@ function drawBox(ctx, part, x, y, sprites) {
 
   ctx.fillStyle = "#07068b";
   ctx.font = "10px nds, monospace";
-  ctx.textBaseline = "top";
+  ctx.textBaseline = "alphabetic";
   // The sender is inside the original inset tab at x+6,y+4.
   ctx.save();
   ctx.beginPath(); ctx.rect(x + 6, y + 4, 80, 12); ctx.clip();
-  ctx.fillText(part.nickname, x + 6, y + 4);
+  ctx.fillText(part.nickname, x + 6, y + 13);
   ctx.restore();
 
   ctx.fillStyle = "#111";
   ctx.font = "10px nds, monospace";
   ctx.save();
   ctx.beginPath(); ctx.rect(x + 4, y + 19, 226, height - 20); ctx.clip();
-  part.lines.forEach((line, i) => ctx.fillText(line, x + 5, y + 19 + i * 16));
+  part.lines.forEach((line, i) => ctx.fillText(line, x + 5, y + 28 + i * 16));
   ctx.restore();
 }
 
@@ -147,7 +148,8 @@ export async function renderPictoRustPages(messages, roomLetter = "A") {
   if (!messages.length) return [];
   if (messages.length > 2000) throw new Error("Too many messages for a single export");
   const letter = /^[A-E]$/.test(roomLetter) ? roomLetter.toLowerCase() : "a";
-  await document.fonts.load("10px nds");
+  await document.fonts.load('10px "nds"');
+  if (!document.fonts.check('10px "nds"')) throw new Error("Original Nintendo DS font unavailable");
   const measure = document.createElement("canvas").getContext("2d");
   measure.font = "10px nds, monospace";
   const parts = splitMessages(measure, messages);
@@ -166,11 +168,14 @@ export async function renderPictoRustPages(messages, roomLetter = "A") {
     canvas.width = WIDTH; canvas.height = HEIGHT;
     const ctx = canvas.getContext("2d");
     ctx.imageSmoothingEnabled = false;
-    // Top 192 pixels of the ORIGINAL full-screen background.
-    ctx.drawImage(sprites["background.png"], 0, 0, 256, 192, 0, 0, 256, 192);
+    // Original DS background repeats beneath a continuous, unclipped message flow.
+    // The physical print page is A4; DS sprite pixels remain native in this raster.
+    for (let yy = 0; yy < HEIGHT; yy += 192) {
+      ctx.drawImage(sprites["background.png"], 0, 0, 256, Math.min(192, HEIGHT - yy), 0, yy, 256, Math.min(192, HEIGHT - yy));
+    }
     ctx.drawImage(sprites["connection.png"], 1, 1, 16, 16);
-    ctx.drawImage(sprites["letter_room_" + letter + ".png"], 1, 175, 16, 16);
-    let y = BOTTOM - group.reduce((total, part) => total + FRAMES[part.size], 0);
+    ctx.drawImage(sprites["letter_room_" + letter + ".png"], 1, HEIGHT - 18, 16, 16);
+    let y = CONTENT_TOP;
     for (const part of group) {
       drawBox(ctx, part, 21, y, sprites);
       y += FRAMES[part.size];
