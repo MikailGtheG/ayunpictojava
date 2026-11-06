@@ -205,15 +205,17 @@ async fn connect(
         .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
     let room = state.rooms.join(&room_id).map_err(|_| StatusCode::BAD_REQUEST)?;
     let room_permit = room.try_enter().map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
+    // Register the subscriber BEFORE completing the handshake. Otherwise a peer
+    // may send a frame just after HTTP 101, but before session() subscribes.
+    let receiver = room.subscribe();
     let time_to_live = temporary_room_deadline(&room_id)
         .map(|deadline| Duration::from_secs(deadline.saturating_sub(unix_seconds())));
     Ok(ws.protocols(["picto.v1"]).max_message_size(MAX_FRAME_BYTES).max_frame_size(MAX_FRAME_BYTES)
-        .on_upgrade(move |socket| session(socket, room, permit, room_permit, time_to_live)))
+        .on_upgrade(move |socket| session(socket, room, receiver, permit, room_permit, time_to_live)))
 }
 
-async fn session(socket: WebSocket, room: Arc<pictochat_relay::Room>, _permit: OwnedSemaphorePermit, _room_permit: OwnedSemaphorePermit, time_to_live: Option<Duration>) {
+async fn session(socket: WebSocket, room: Arc<pictochat_relay::Room>, mut receiver: tokio::sync::broadcast::Receiver<Vec<u8>>, _permit: OwnedSemaphorePermit, _room_permit: OwnedSemaphorePermit, time_to_live: Option<Duration>) {
     let (mut outgoing, mut incoming) = socket.split();
-    let mut receiver = room.subscribe();
     let mut quota = MessageQuota::new();
     // Not even an already connected peer may extend a temporary room past expiry.
     let expiry = async move {
