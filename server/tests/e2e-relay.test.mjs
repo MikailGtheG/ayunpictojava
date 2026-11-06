@@ -162,3 +162,28 @@ test("cross-room ciphertext cannot be decrypted with the same key in another roo
     for (const socket of connections) socket.close();
   }
 });
+
+test("opaque MLS v3 control frames route intact; malformed kinds close sender", async () => {
+  const connections = [];
+  try {
+    const sender = await openSocket(ROOM_A, admission(ROOM_A));
+    connections.push(sender);
+    const peer = await openSocket(ROOM_A, admission(ROOM_A));
+    connections.push(peer);
+    for (const kind of [1, 2, 3, 4]) {
+      const payload = Uint8Array.from([3, kind, 0x7f, 0x01, 0x45, 0xfa]);
+      const incoming = nextBinary(peer);
+      sender.send(payload);
+      const got = await incoming;
+      assert.deepEqual(got, payload, "Relay must not parse, rewrite or decrypt MLS payload");
+    }
+    const closed = new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error("Invalid MLS kind not rejected")), 4000);
+      sender.addEventListener("close", () => { clearTimeout(timer); resolve(); }, { once: true });
+    });
+    sender.send(Uint8Array.from([3, 0, 99]));
+    await closed;
+  } finally {
+    for (const socket of connections) socket.close();
+  }
+});
