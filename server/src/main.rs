@@ -1,14 +1,15 @@
 //! Development-only loopback WebSocket relay.
 //! Client-side experimental AES-GCM with bearer room admission. No verified identities,
 //! automatic key distribution, forward secrecy, or TLS yet.
-use std::{net::SocketAddr, sync::Arc, time::{Duration, Instant}};
+use std::{net::SocketAddr, sync::Arc, time::{Duration, Instant, SystemTime, UNIX_EPOCH}};
+use rand::{rngs::OsRng, RngCore};
 use axum::{
     extract::{
         ws::{Message, WebSocket, WebSocketUpgrade},
         Path, State,
     },
     http::{header::{ORIGIN, SEC_WEBSOCKET_PROTOCOL}, HeaderMap, StatusCode},
-    routing::get,
+    routing::{get, post},
     Router,
 };
 use futures_util::{SinkExt, StreamExt};
@@ -17,6 +18,7 @@ use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 
 const MAX_CONNECTIONS: usize = 128;
 const MAX_MESSAGES_PER_SECOND: u32 = 20;
+const TEMP_ROOM_TTL_SECONDS: u64 = 6 * 3600;
 
 #[derive(Clone)]
 struct AppState {
@@ -81,6 +83,7 @@ fn router(state: AppState) -> Router {
         .route("/app.mjs", get(app_module))
         .route("/session.mjs", get(session_module))
         .route("/identity.mjs", get(identity_module))
+        .route("/new-room", post(create_temporary_room))
         .route("/ws/{room_id}", get(connect))
         .with_state(state)
 }
@@ -138,6 +141,48 @@ async fn dev_home() -> ([(axum::http::header::HeaderName, &'static str); 5], &'s
     )
 }
 
+// Stateless, time-limited HMAC bearer invitation. Never persisted.
+// Legacy administratively issued IDs stay supported for the development tests.
+fn unix_seconds() -> u64 {
+    SystemTime::now().duration_since(UNIX_EPOCH)
+        .unwrap_or_default().as_secs()
+}
+
+fn temporary_room_is_expired(id: &str) -> bool {
+    if id.len() != 32 || !id.starts_with("ee") {
+        return false;
+    }
+    let Ok(created) = u64::from_str_radix(&id[2..10], 16) else { return true; };
+    let now = unix_seconds();
+    created > now.saturating_add(60)
+        || now >= created.saturating_add(TEMP_ROOM_TTL_SECONDS)
+}
+
+async fn create_temporary_room(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<([(axum::http::header::HeaderName, &'static str); 3], String), StatusCode> {
+    if !origin_is_allowed(&headers) {
+        return Err(StatusCode::FORBIDDEN);
+    }
+    let now = unix_seconds();
+    let mut bytes = [0u8; 11];
+    OsRng.fill_bytes(&mut bytes);
+    let id = format!("ee{:08x}{}", now as u32, hex::encode(bytes));
+    let token = state.auth.issue(&id).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let expires = now.saturating_add(TEMP_ROOM_TTL_SECONDS);
+    // Values are exclusively generated ASCII hex and numeric characters.
+    let body = format!("{{\"roomId\":\"{id}\",\"token\":\"{token}\",\"expiresAt\":{expires}}}");
+    Ok((
+        [
+            (axum::http::header::CONTENT_TYPE, "application/json; charset=utf-8"),
+            (axum::http::header::CACHE_CONTROL, "no-store"),
+            (axum::http::header::REFERRER_POLICY, "no-referrer"),
+        ],
+        body,
+    ))
+}
+
 async fn connect(
     State(state): State<AppState>,
     Path(room_id): Path<String>,
@@ -147,7 +192,7 @@ async fn connect(
     if !origin_is_allowed(&headers) {
         return Err(StatusCode::FORBIDDEN);
     }
-    if !room_capability_valid(&headers, &room_id, &state.auth) {
+    if temporary_room_is_expired(&room_id) || !room_capability_valid(&headers, &room_id, &state.auth) {
         return Err(StatusCode::FORBIDDEN);
     }
     let permit = state.slots.clone().try_acquire_owned()
@@ -293,6 +338,30 @@ mod tests {
         let received = timeout(Duration::from_secs(3), bob.next()).await.unwrap().unwrap().unwrap();
         assert_eq!(received.into_data().as_ref(), envelope.as_slice());
         server.abort();
+    }
+
+    #[tokio::test]
+    async fn temporary_room_issues_valid_expiring_bearer() {
+        use axum::extract::State;
+        let auth = Arc::new(RoomAuth::from_hex(&"11".repeat(32)).unwrap());
+        let state = AppState {
+            rooms: Arc::new(Rooms::default()),
+            slots: Arc::new(Semaphore::new(MAX_CONNECTIONS)),
+            auth: auth.clone(),
+        };
+        let (_, json) = create_temporary_room(State(state), HeaderMap::new()).await.unwrap();
+        let value: serde_json::Value = serde_json::from_str(&json).unwrap();
+        let id = value["roomId"].as_str().unwrap();
+        let token = value["token"].as_str().unwrap();
+        assert!(id.starts_with("ee"));
+        assert_eq!(id.len(), 32);
+        assert!(auth.verify(id, token));
+        assert!(!temporary_room_is_expired(id));
+        assert_eq!(value["expiresAt"].as_u64().unwrap(), unix_seconds() + TEMP_ROOM_TTL_SECONDS);
+        let old = format!("ee{:08x}{}", (unix_seconds() - TEMP_ROOM_TTL_SECONDS - 1) as u32, "aa".repeat(11));
+        assert!(temporary_room_is_expired(&old));
+        let future = format!("ee{:08x}{}", (unix_seconds() + 1000) as u32, "bb".repeat(11));
+        assert!(temporary_room_is_expired(&future));
     }
 
     #[test]
