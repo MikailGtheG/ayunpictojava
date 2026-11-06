@@ -156,7 +156,7 @@ export async function renderPictoRustPages(messages, roomLetter = "A") {
   const pages = groupPages(parts);
   if (pages.length > 200) throw new Error("Too many export pages");
 
-  const names = new Set(["background.png", "connection.png", "letter_room_" + letter + ".png"]);
+  const names = new Set(["letter_room_" + letter + ".png"]);
   parts.forEach(part => {
     for (const prefix of ["box_bg", "box_outline", "box_lines"])
       names.add(prefix + part.size + ".png");
@@ -168,13 +168,12 @@ export async function renderPictoRustPages(messages, roomLetter = "A") {
     canvas.width = WIDTH; canvas.height = HEIGHT;
     const ctx = canvas.getContext("2d");
     ctx.imageSmoothingEnabled = false;
-    // Original DS background repeats beneath a continuous, unclipped message flow.
-    // The physical print page is A4; DS sprite pixels remain native in this raster.
-    for (let yy = 0; yy < HEIGHT; yy += 192) {
-      ctx.drawImage(sprites["background.png"], 0, 0, 256, Math.min(192, HEIGHT - yy), 0, yy, 256, Math.min(192, HEIGHT - yy));
-    }
-    ctx.drawImage(sprites["connection.png"], 1, 1, 16, 16);
-    ctx.drawImage(sprites["letter_room_" + letter + ".png"], 1, HEIGHT - 18, 16, 16);
+    // Paper-only neutral backing: an otherwise empty DS screen repeats gray
+    // raster lines across the whole A4 page, obscuring short chat exports.
+    // Preserve authentic per-message bg, ruled lines and outline sprites.
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, WIDTH, HEIGHT);
+    ctx.drawImage(sprites["letter_room_" + letter + ".png"], 2, 0, 12, 12);
     let y = CONTENT_TOP;
     for (const part of group) {
       drawBox(ctx, part, 21, y, sprites);
