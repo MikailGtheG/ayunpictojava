@@ -9,6 +9,44 @@ let socket=null,strokes=[],current=null,roomKey=null,replayGuard=null,sessionIde
 const MAX_BYTES=16384,MAX_POINTS=1200;
 let totalPoints=0;
 const setStatus=t=>status.textContent=t;
+const stage=document.getElementById("picto");
+const lobby=document.getElementById("lobby");
+const securityPanel=document.getElementById("security-panel");
+const board=document.getElementById("writing-board");
+let lastReceivedData=null;
+let selectedRoomLetter="A";
+for(const button of document.querySelectorAll("[data-room-letter]")){
+ button.addEventListener("click",()=>{
+  selectedRoomLetter=button.getAttribute("data-room-letter")||"A";
+  document.getElementById("room-letter").textContent="Chat Room "+selectedRoomLetter;
+  for(const item of document.querySelectorAll("[data-room-letter]"))item.setAttribute("aria-pressed",String(item===button));
+ });
+}
+function setTool(which){
+ board.classList.toggle("mode-text",which==="text");
+ board.classList.toggle("mode-pen",which==="pen");
+ document.getElementById("pen-tool").setAttribute("aria-pressed",String(which==="pen"));
+ document.getElementById("text-tool").setAttribute("aria-pressed",String(which==="text"));
+ if(which==="text")document.getElementById("text").focus();
+}
+document.getElementById("pen-tool").addEventListener("click",()=>setTool("pen"));
+document.getElementById("text-tool").addEventListener("click",()=>setTool("text"));
+document.getElementById("eraser-tool").addEventListener("click",()=>{
+ const removed=strokes.pop();if(removed)totalPoints-=removed.length;
+ current=null;redraw();
+});
+document.getElementById("scroll-up").addEventListener("click",()=>messages.scrollBy({top:-96,behavior:"smooth"}));
+document.getElementById("scroll-down").addEventListener("click",()=>messages.scrollBy({top:96,behavior:"smooth"}));
+document.getElementById("copy-last").addEventListener("click",()=>{
+ if(!lastReceivedData)return;
+ document.getElementById("text").value=lastReceivedData.text||"";
+ strokes=lastReceivedData.strokes.map(x=>x.map(p=>[...p]));
+ totalPoints=strokes.reduce((n,x)=>n+x.length,0);
+ current=null;redraw();
+});
+document.getElementById("clear-chat").addEventListener("click",()=>messages.replaceChildren());
+document.getElementById("leave-room").addEventListener("click",()=>socket?.close());
+
 room.value=randomRoomId();
 $("new-room").addEventListener("click",async()=>{
  if(socket)return;
@@ -46,9 +84,18 @@ document.querySelectorAll("#touch-keys [data-char]").forEach(button=>{
   const ch=button.getAttribute("data-char");
   if(!ch)return;
   const start=field.selectionStart,end=field.selectionEnd;
-  const next=field.value.slice(0,start)+ch+field.value.slice(end);
+  if(ch==="BACKSPACE"){
+   if(start===end && start>0){
+    const prev=Array.from(field.value.slice(0,start)).pop()||"";
+    field.value=field.value.slice(0,start-prev.length)+field.value.slice(end);
+    field.focus();field.setSelectionRange(start-prev.length,start-prev.length);
+   }else{field.value=field.value.slice(0,start)+field.value.slice(end);field.focus();field.setSelectionRange(start,start);}
+   return;
+  }
+  const insert=ch==="ENTER"?"\\n":ch;
+  const next=field.value.slice(0,start)+insert+field.value.slice(end);
   if(Array.from(next).length>2000)return;
-  field.value=next;field.focus();field.setSelectionRange(start+ch.length,start+ch.length);
+  field.value=next;field.focus();field.setSelectionRange(start+insert.length,start+insert.length);
  });
 });
 async function renewIdentity(){
@@ -72,7 +119,7 @@ $("generate-key").addEventListener("click",()=>{
 $("show-key").addEventListener("click",()=>{
  const field=$("e2ee-key");field.type=field.type==="password"?"text":"password";
 });
-const enabled=on=>{$("send").disabled=!on;$("disconnect").disabled=!on;$("connect").disabled=on||!sessionIdentity;room.disabled=on;token.disabled=on;$("new-identity").disabled=on;$("new-room").disabled=on;$("trusted-fingerprints").disabled=on;};
+const enabled=on=>{$("send").disabled=!on;$("disconnect").disabled=!on;$("connect").disabled=on||!sessionIdentity;room.disabled=on;token.disabled=on;$("new-identity").disabled=on;$("new-room").disabled=on;$("trusted-fingerprints").disabled=on;lobby.hidden=on;if(on)securityPanel.open=false;else securityPanel.open=true;};
 function xy(e){
  const b=canvas.getBoundingClientRect();
  return [Math.max(0,Math.min(512,Math.round((e.clientX-b.left)*512/b.width))),
@@ -102,6 +149,7 @@ $("undo").addEventListener("click",()=>{
  current=null;redraw();
 });
 function render(data,who){
+ lastReceivedData={text:data.text||"",strokes:data.strokes.map(x=>x.map(p=>[...p]))};
  const div=document.createElement("article");div.className="entry";
  const name=document.createElement("div");name.className="who";name.textContent=who;
  div.append(name);
@@ -145,7 +193,7 @@ $("connect").addEventListener("click",async()=>{
   }catch{setStatus("Ungültige, manipulierte oder wiederholte Nachricht verworfen");}
  };
  ws.onerror=()=>setStatus("Verbindungsfehler oder Raumzugang abgelehnt");
- ws.onclose=()=>{if(socket===ws){socket=null;roomKey=null;replayGuard=null;trustedPeers=null;sessionIdentity=null;
+ ws.onclose=()=>{if(socket===ws){socket=null;roomKey=null;replayGuard=null;trustedPeers=null;sessionIdentity=null;lastReceivedData=null;
   messages.replaceChildren();strokes=[];current=null;totalPoints=0;redraw();
   token.value="";$("e2ee-key").value="";$("trusted-fingerprints").value="";
   enabled(false);setStatus("Sitzung beendet – lokale Nachrichten und Schlüssel verworfen");renewIdentity();}};
