@@ -308,14 +308,11 @@ async function main() {
       path:`${screenshots}/pictorust-multipage-demo.pdf`,
       printBackground:true,preferCSSPageSize:true,displayHeaderFooter:false,scale:1
     });
-    // Restore only the original real ephemeral messages for any next export.
-    await alice.locator("#security-panel summary").click();
+    // The technical settings panel is still open from the first button test.
+    // Refresh the live page, then close the panel once before mobile checks.
     await alice.locator("#pdf").click();
-    await alice.locator("#security-panel summary").click();
     await alice.waitForFunction(() =>
       document.querySelectorAll("#pixel-print .pixel-page").length===1);
-
-
     await alice.locator("#security-panel summary").click();
 
     const mobileContext = await browser.newContext({ ...devices["iPhone 13"], browserName: undefined });
