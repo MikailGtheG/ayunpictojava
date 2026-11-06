@@ -31,8 +31,15 @@ test("TypeScript session module exactly matches shipped browser implementation",
 test("DS-style UI provides temporary room controls, undo and clearing on leave",()=>{
  const html=readFileSync(new URL("../public/index.html",import.meta.url),"utf8");
  const app=readFileSync(new URL("../public/app.mjs",import.meta.url),"utf8");
- assert.match(html,/class="device"/);
- assert.match(html,/class="hinge"/);
+ assert.match(html,/id="picto"/);
+ assert.match(html,/\/original\/images\/background\.png/);
+ assert.match(html,/\/original\/images\/bottom_screen\.png/);
+ assert.match(html,/\/original\/images\/room_a\.png/);
+ assert.match(html,/\/original\/nds\.ttf/);
+ assert.match(html,/id="lobby"/);
+ assert.match(html,/id="writing-board"/);
+ assert.match(html,/id="room-head"/);
+ assert.match(html,/id="tool-rail"/);
  assert.match(html,/id="new-room"/);
  assert.match(html,/id="nickname"/);
  assert.match(html,/id="undo"/);
