@@ -19,8 +19,8 @@ let selectedRoomLetter="A";
 for(const button of Array.from(document.querySelectorAll("[data-room-letter]"))){
  button.addEventListener("click",()=>{
   selectedRoomLetter=button.getAttribute("data-room-letter")||"A";
-  document.getElementById("room-letter").src="/original/images/letter_room_"+selectedRoomLetter.toLowerCase()+".png";
-  document.getElementById("room-letter").alt="Chat Room "+selectedRoomLetter;
+  document.getElementById("room-letter").setAttribute("src","/original/images/letter_room_"+selectedRoomLetter.toLowerCase()+".png");
+  document.getElementById("room-letter").setAttribute("alt","Chat Room "+selectedRoomLetter);
   for(const item of Array.from(document.querySelectorAll("[data-room-letter]")))item.setAttribute("aria-pressed",String(item===button));
  });
 }
