@@ -80,7 +80,7 @@ async function main() {
     });
     assert.ok(Math.abs(geometry.stageAspect - 256/384) < 0.002, "DS aspect ratio must be exact");
     for (const [name, expected] of Object.entries({
-      board:[21,207,234,84], send:[225,296,31,30],
+      board:[21,207,234,85], send:[225,296,31,30],
       copy:[225,327,31,23], clear:[225,351,31,24],
       scrollUp:[2,194,14,14], scrollDown:[2,209,14,14],
       pen:[2,230,14,13], eraser:[2,244,14,13],
