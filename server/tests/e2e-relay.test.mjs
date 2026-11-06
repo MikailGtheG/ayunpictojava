@@ -187,3 +187,17 @@ test("opaque MLS v3 control frames route intact; malformed kinds close sender", 
     for (const socket of connections) socket.close();
   }
 });
+
+test("stateless temporary room API issues a usable admission token",async()=>{
+ const response=await fetch("http://127.0.0.1:8787/new-room",{method:"POST"});
+ assert.equal(response.status,200);
+ assert.equal(response.headers.get("cache-control"),"no-store");
+ const invitation=await response.json();
+ assert.match(invitation.roomId,/^ee[0-9a-f]{30}$/);
+ assert.match(invitation.token,/^[0-9a-f]{64}$/);
+ assert.ok(invitation.expiresAt>Math.floor(Date.now()/1000));
+ const ws=await openSocket(invitation.roomId,invitation.token);
+ assert.equal(ws.readyState,WebSocket.OPEN);
+ ws.close();
+ await mustReject(invitation.roomId,"00".repeat(32));
+});
