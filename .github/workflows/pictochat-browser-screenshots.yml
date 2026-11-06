@@ -68,6 +68,7 @@ jobs:
           name: pictochat-browser-screenshots-${{ github.run_id }}
           path: |
             server/screenshots/*.png
+            server/screenshots/*.pdf
             server/screenshots/relay.log
           if-no-files-found: warn
           retention-days: 14
@@ -88,8 +89,9 @@ jobs:
             echo ''
             echo "[📷 Download both screenshots (PNG)](${ARTIFACT_URL})"
             echo ''
-            echo 'Files: `pictochat-desktop.png` and `pictochat-mobile.png`'
+            echo 'Files: `pictochat-desktop.png`, `pictochat-mobile.png` and `pictochat-print-demo.pdf`'
             echo ''
+            echo 'The PDF tests the real browser print stylesheet with Unicode and a canvas drawing.'
             echo 'All visible chat content is synthetic; credentials are redacted before capture.'
             echo ''
             echo '**Security notice:** this is still the experimental V2 browser client; OpenMLS is tested separately and not yet integrated into the browser.'
