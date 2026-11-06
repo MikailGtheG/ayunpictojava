@@ -1,0 +1,96 @@
+name: PictoChat browser screenshots
+
+on:
+  push:
+    branches:
+      - development/pictochat-modernization
+    paths:
+      - 'server/**'
+      - 'frontend/**'
+      - '.github/workflows/pictochat-browser-screenshots.yml'
+  pull_request:
+    paths:
+      - 'server/**'
+      - 'frontend/**'
+      - '.github/workflows/pictochat-browser-screenshots.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pictochat-screenshots-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  browser-acceptance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: server
+      - name: Install Chromium for visual tests
+        run: |
+          npm install --no-save --no-package-lock --ignore-scripts playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Build relay before browser tests
+        run: cargo build --bin pictochat-relay
+      - name: Run actual two-browser acceptance and capture screenshots
+        env:
+          PICTOCHAT_RELAY_SECRET: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+        run: |
+          set -euo pipefail
+          mkdir -p screenshots
+          target/debug/pictochat-relay > screenshots/relay.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          for i in $(seq 1 50); do
+            if curl --fail --silent http://127.0.0.1:8787/ >/dev/null; then
+              node tests/browser-visual.mjs
+              exit 0
+            fi
+            sleep 1
+          done
+          echo 'Relay failed to start'
+          cat screenshots/relay.log
+          exit 1
+      - name: Upload desktop and mobile browser screenshots
+        id: screenshot_artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pictochat-browser-screenshots-${{ github.run_id }}
+          path: |
+            server/screenshots/*.png
+            server/screenshots/relay.log
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Add screenshots to GitHub Actions summary
+        if: always()
+        env:
+          ARTIFACT_URL: ${{ steps.screenshot_artifacts.outputs.artifact-url }}
+        run: |
+          {
+            echo '## 🖥️ PictoChat 2.0 – Browser screenshots'
+            echo ''
+            echo '**Two real Chromium clients** communicate via the local Rust relay.'
+            echo 'The test creates an invitation, exchanges verified ephemeral fingerprints, sends encrypted German/Turkish text and a drawing, and verifies rendering.'
+            echo ''
+            echo '### Desktop and mobile snapshots'
+            echo ''
+            echo 'Screenshots are available in the GitHub Actions artifacts:'
+            echo ''
+            echo "[📷 Download both screenshots (PNG)](${ARTIFACT_URL})"
+            echo ''
+            echo 'Files: `pictochat-desktop.png` and `pictochat-mobile.png`'
+            echo ''
+            echo 'All visible chat content is synthetic; credentials are redacted before capture.'
+            echo ''
+            echo '**Security notice:** this is still the experimental V2 browser client; OpenMLS is tested separately and not yet integrated into the browser.'
+          } >> "$GITHUB_STEP_SUMMARY"
