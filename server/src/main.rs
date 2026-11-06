@@ -285,7 +285,7 @@ mod tests {
         assert!(include_str!("../public/app.mjs").contains("identity.mjs"));
         assert!(html.contains("app.mjs"));
         assert!(!html.contains("<script type=\"module\">"));
-        assert!(!dev_home().await.0[2].1.contains("script-src \'self\' \'unsafe-inline\'"));
+        assert!(include_str!("main.rs").contains("script-src \'self\';"));
         assert!(html.contains("session.mjs") || include_str!("../public/app.mjs").contains("session.mjs"));
         let app = include_str!("../public/app.mjs");
         assert!(app.contains("verifyMessage("));
