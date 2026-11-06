@@ -81,6 +81,15 @@ jobs:
           grep -Eq '^ *1 +0 +image +256 +192 ' screenshots/pdf-images.txt
           pdftoppm -f 1 -l 1 -r 96 -singlefile -png screenshots/pictochat-print-demo.pdf screenshots/pictochat-print-preview
           test -s screenshots/pictochat-print-preview.png
+          test -s screenshots/pictorust-multipage-demo.pdf
+          pdfinfo screenshots/pictorust-multipage-demo.pdf > screenshots/multipage-pdfinfo.txt
+          grep -Eq 'Pages: +4' screenshots/multipage-pdfinfo.txt
+          grep -Eq 'Page size: +192 x 144 pts' screenshots/multipage-pdfinfo.txt
+          pdftotext screenshots/pictorust-multipage-demo.pdf screenshots/multipage-text.txt
+          if grep -Eq '[[:alnum:]]' screenshots/multipage-text.txt; then exit 1; fi
+          pdfimages -list screenshots/pictorust-multipage-demo.pdf > screenshots/multipage-images.txt
+          grep -Eq '^ *4 +0 +image +256 +192 ' screenshots/multipage-images.txt
+          echo 'Verified four raster-only PDF pages.'
           echo 'Validated original 256x192 raster PictoChat PDF, no captions or overlays.'
       - name: Upload visual proofs and logs
         if: always()
@@ -93,6 +102,8 @@ jobs:
             server/screenshots/*.pdf
             server/screenshots/pdfinfo.txt
             server/screenshots/pdf-images.txt
+            server/screenshots/multipage-pdfinfo.txt
+            server/screenshots/multipage-images.txt
             server/screenshots/print-text.txt
             server/screenshots/relay.log
           retention-days: 14
