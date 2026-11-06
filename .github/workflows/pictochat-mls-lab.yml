@@ -37,6 +37,8 @@ jobs:
         run: cargo test --all-targets -- --nocapture
       - name: Check MLS lab with Clippy
         run: cargo clippy --all-targets -- -D warnings
+      - name: Exercise standalone three-device MLS client
+        run: cargo run --example three_devices
       - name: Test OpenMLS over actual Rust WebSockets
         env:
           PICTOCHAT_RELAY_SECRET: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
