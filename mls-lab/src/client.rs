@@ -64,6 +64,7 @@ impl Client {
         KeyPackage::builder().build(
             CIPHER_SUITE, &self.provider, &self.signer, self.credential.clone()
         ).expect("key package generation")
+            .key_package().clone()
     }
 
     pub fn start_group(&mut self) {
