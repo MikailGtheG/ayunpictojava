@@ -75,6 +75,13 @@ $("copy-invite").addEventListener("click",async()=>{
  }catch{setStatus("Einladung konnte nicht kopiert werden");}
 });
 $("nickname").value="Gast";
+function syncDraftNickname(){
+ const label=document.getElementById("draft-name");
+ label.textContent=sanitizeNickname($("nickname").value);
+ label.title=label.textContent;
+}
+$("nickname").addEventListener("input",syncDraftNickname);
+syncDraftNickname();
 $("copy-room").addEventListener("click",async()=>{
  try{
   await navigator.clipboard.writeText(room.value.trim());
@@ -211,7 +218,9 @@ function render(data,who){
  const div=document.createElement("article");
  const visualLines=data.strokes?.length?5:Math.max(2,Math.min(5,Math.ceil(Array.from(data.text||"").length/36)+1));
  div.className="entry lines-"+visualLines;
- const name=document.createElement("div");name.className="who";name.textContent=who;
+ div.style.setProperty("--frame-color","#05058a");
+ div.style.setProperty("--line-color","#b9b9e4");
+ const name=document.createElement("div");name.className="who";name.textContent=sanitizeNickname(data.nickname);name.title=who;
  div.append(name);
  if(data.text){const p=document.createElement("div");p.className="body";p.textContent=data.text;div.append(p);}
  if(Array.isArray(data.strokes)&&data.strokes.length){
