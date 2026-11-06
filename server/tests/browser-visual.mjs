@@ -279,6 +279,23 @@ async function main() {
     });
     await alice.emulateMedia({media:"screen"});
     assert.equal(await alice.locator("#pixel-print").isVisible(),false);
+    // Long histories must paginate without text-only A4 cards or losing messages.
+    const pagesInMemory = await alice.evaluate(async () => {
+      const {renderPictoRustPages} = await import("./pictorust-export.mjs");
+      const many = Array.from({length:13},(_,i)=>({
+        nickname:"User"+i,text:"Message "+i+" – ÄÖÜ ğışç 😊",strokes:[]
+      }));
+      const pages = await renderPictoRustPages(many,"A");
+      return {
+        count:pages.length,
+        unique:new Set(pages).size,
+        validPng:pages.every(p=>p.startsWith("data:image/png;base64,"))
+      };
+    });
+    assert.equal(pagesInMemory.count,4,"13 short messages must split into four original-screen pages");
+    assert.equal(pagesInMemory.unique,4,"separate pages must not duplicate the same image");
+    assert.equal(pagesInMemory.validPng,true);
+
     await alice.locator("#security-panel summary").click();
 
     const mobileContext = await browser.newContext({ ...devices["iPhone 13"], browserName: undefined });
