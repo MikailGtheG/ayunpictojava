@@ -1,0 +1,133 @@
+import { importRoomKey, encryptPacket, decryptPacket, ReplayGuard } from "./crypto.mjs";
+import { createSessionIdentity, signMessage, verifyMessage, parseTrustedFingerprints } from "./identity.mjs";
+import { randomRoomId, sanitizeNickname, validateDraft } from "./session.mjs";
+"use strict";
+const $: any = (id: string) => document.getElementById(id);
+const room=$("room"),token=$("token"),status=$("status"),messages=$("messages");
+const canvas=$("drawing"),ctx=canvas.getContext("2d"),encoder=new TextEncoder(),decoder=new TextDecoder("utf-8",{fatal:true});
+let socket=null,strokes=[],current=null,roomKey=null,replayGuard=null,sessionIdentity=null,trustedPeers=null;
+const MAX_BYTES=16384,MAX_POINTS=1200;
+let totalPoints=0;
+const setStatus=t=>status.textContent=t;
+room.value=randomRoomId();
+$("new-room").addEventListener("click",()=>{
+ if(socket)return;
+ room.value=randomRoomId();messages.replaceChildren();
+ setStatus("Neuer temporärer Raum erzeugt. Raum-ID und Zugangstoken getrennt teilen.");
+});
+$("nickname").value="Gast";
+async function renewIdentity(){
+ if(socket)return;
+ $("connect").disabled=true;
+ $("own-fingerprint").textContent="Wird erzeugt …";
+ try{
+  sessionIdentity=await createSessionIdentity();
+  $("own-fingerprint").textContent=sessionIdentity.fingerprint;
+  setStatus("Eigene Sitzungsidentität erzeugt – Fingerprints außerhalb des Chats austauschen");
+ }catch{setStatus("Sitzungsidentität konnte nicht erzeugt werden");}
+ finally{$("connect").disabled=!!socket||!sessionIdentity;}
+}
+$("new-identity").addEventListener("click",renewIdentity);
+renewIdentity();
+$("generate-key").addEventListener("click",()=>{
+ const bytes=globalThis.crypto.getRandomValues(new Uint8Array(32));
+ $("e2ee-key").value=Array.from(bytes,b=>b.toString(16).padStart(2,"0")).join("");
+ setStatus("Neuen Chat-Schlüssel erzeugt; vor dem Verbinden sicher separat an andere Teilnehmer weitergeben");
+});
+$("show-key").addEventListener("click",()=>{
+ const field=$("e2ee-key");field.type=field.type==="password"?"text":"password";
+});
+const enabled=on=>{$("send").disabled=!on;$("disconnect").disabled=!on;$("connect").disabled=on||!sessionIdentity;room.disabled=on;token.disabled=on;$("new-identity").disabled=on;$("new-room").disabled=on;$("trusted-fingerprints").disabled=on;};
+function xy(e){
+ const b=canvas.getBoundingClientRect();
+ return [Math.max(0,Math.min(512,Math.round((e.clientX-b.left)*512/b.width))),
+         Math.max(0,Math.min(170,Math.round((e.clientY-b.top)*170/b.height)))];
+}
+function line(points,context){
+ if(!points.length)return;
+ context.beginPath();context.moveTo(points[0][0],points[0][1]);
+ for(const p of points.slice(1))context.lineTo(p[0],p[1]);
+ if(points.length===1){context.lineTo(points[0][0]+.1,points[0][1]+.1);}
+ context.stroke();
+}
+function redraw(){
+ ctx.clearRect(0,0,512,170);ctx.lineWidth=2.5;ctx.strokeStyle="#111";ctx.lineJoin="round";ctx.lineCap="round";
+ for(const stroke of strokes)line(stroke,ctx);
+}
+canvas.addEventListener("pointerdown",e=>{if(totalPoints>=MAX_POINTS)return;current=[xy(e)];strokes.push(current);totalPoints++;canvas.setPointerCapture(e.pointerId);redraw();});
+canvas.addEventListener("pointermove",e=>{
+ if(!current||totalPoints>=MAX_POINTS)return;
+ const p=xy(e),last=current[current.length-1];
+ if(p[0]!==last[0]||p[1]!==last[1]){current.push(p);totalPoints++;redraw();}
+});
+for(const event of ["pointerup","pointercancel","lostpointercapture"])canvas.addEventListener(event,()=>{current=null;});
+$("clear").addEventListener("click",()=>{strokes=[];current=null;totalPoints=0;redraw();});
+$("undo").addEventListener("click",()=>{
+ const deleted=strokes.pop();if(deleted)totalPoints-=deleted.length;
+ current=null;redraw();
+});
+function render(data,who){
+ const div=document.createElement("article");div.className="entry";
+ const name=document.createElement("div");name.className="who";name.textContent=who;
+ div.append(name);
+ if(data.text){const p=document.createElement("div");p.className="body";p.textContent=data.text;div.append(p);}
+ if(Array.isArray(data.strokes)&&data.strokes.length){
+   const painting=document.createElement("canvas");painting.width=512;painting.height=170;
+   const context=painting.getContext("2d");context.strokeStyle="#111";context.lineWidth=2.5;context.lineJoin="round";context.lineCap="round";
+   for(const stroke of data.strokes)line(stroke,context);
+   const image=document.createElement("img");image.alt="Gezeichnete Nachricht";image.src=painting.toDataURL("image/png");div.append(image);
+ }
+ messages.append(div);messages.scrollTop=messages.scrollHeight;
+}
+function valid(data){
+ return validateDraft(data) && typeof data.nickname==="string" &&
+  sanitizeNickname(data.nickname)===data.nickname;
+}
+$("connect").addEventListener("click",async()=>{
+ const id=room.value.trim(),cap=token.value.trim(),secret=$("e2ee-key").value.trim();
+ if(!/^[0-9a-f]{32}$/.test(id)||!/^[0-9a-f]{64}$/.test(cap)){setStatus("Ungültige Raum-ID oder Zugangstoken");return;}
+ if(socket||!sessionIdentity)return;
+ try{
+  trustedPeers=parseTrustedFingerprints($("trusted-fingerprints").value);
+  trustedPeers.add(sessionIdentity.fingerprint);
+  roomKey=await importRoomKey(secret);
+ }catch{setStatus("Chat-Schlüssel oder geprüfte Fingerprints fehlen/ungültig");return;}
+ $("e2ee-key").value="";
+ $("e2ee-key").type="password";
+ replayGuard=new ReplayGuard();
+ const ws=new WebSocket("ws://"+location.host+"/ws/"+id,["picto.v1","auth."+cap]);
+ ws.binaryType="arraybuffer";socket=ws;setStatus("Verbinde …");$("connect").disabled=true;
+ ws.onopen=()=>{if(socket===ws){enabled(true);setStatus("Verbunden (experimentell verschlüsselt)");}};
+ ws.onmessage=async e=>{
+  if(!(e.data instanceof ArrayBuffer)||e.data.byteLength>MAX_BYTES||!roomKey)return;
+  try{
+    const plain=await decryptPacket(roomKey,id,e.data,replayGuard);
+    if(socket!==ws)return;
+    const signed=JSON.parse(decoder.decode(plain));
+    const verified=await verifyMessage(signed,id,trustedPeers);
+    if(socket!==ws)return;
+    if(valid(verified.body))render(verified.body,verified.body.nickname+" · "+verified.fingerprint.slice(0,10));
+  }catch{setStatus("Ungültige, manipulierte oder wiederholte Nachricht verworfen");}
+ };
+ ws.onerror=()=>setStatus("Verbindungsfehler oder Raumzugang abgelehnt");
+ ws.onclose=()=>{if(socket===ws){socket=null;roomKey=null;replayGuard=null;trustedPeers=null;sessionIdentity=null;
+  messages.replaceChildren();strokes=[];current=null;totalPoints=0;redraw();
+  token.value="";$("e2ee-key").value="";$("trusted-fingerprints").value="";
+  enabled(false);setStatus("Sitzung beendet – lokale Nachrichten und Schlüssel verworfen");renewIdentity();}};
+});
+$("disconnect").addEventListener("click",()=>socket?.close());
+$("send").addEventListener("click",async()=>{
+ if(!socket||socket.readyState!==WebSocket.OPEN||!roomKey)return;
+ const active=socket,key=roomKey,identity=sessionIdentity;
+ const data={v:1,text:$("text").value,nickname:sanitizeNickname($("nickname").value),strokes:strokes.map(s=>s.map(p=>[...p]))};
+ if(!data.text.trim()&&!data.strokes.length)return;
+ try {
+  const signed=await signMessage(identity,room.value.trim(),data);
+  const encrypted=await encryptPacket(key,room.value.trim(),encoder.encode(JSON.stringify(signed)));
+  if(socket!==active||socket.readyState!==WebSocket.OPEN)return;
+  socket.send(encrypted);$("text").value="";strokes=[];current=null;totalPoints=0;redraw();
+ }catch{setStatus("Nachricht zu groß oder Verschlüsselung fehlgeschlagen");}
+});
+$("pdf").addEventListener("click",()=>window.print());
+$("erase").addEventListener("click",()=>messages.replaceChildren());
+window.addEventListener("beforeunload",()=>socket?.close());
