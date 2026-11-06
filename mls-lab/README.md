@@ -13,11 +13,15 @@ This is **not the PictoChat production cryptography stack**. It is a separate Ru
 - The first member removes the second via an MLS commit, advancing the group's epoch.
 - After applying the removal, the evicted member's group becomes inactive; creating a new group message is rejected.
 
-Run locally using `cargo test` in `mls-lab/`. The dedicated GitHub workflow exercises this crate independently from Java and the existing Rust relay.
+The same test crate now has **two separate integration tiers**:
+- `tests/relay_integration.rs` sends real MLS Welcome, application, and removal-Commit bytes through `pictochat_relay::Rooms`, the exact in-memory broadcast mechanism used by our Rust WebSocket server.
+- `tests/websocket.rs` connects two true WebSocket peers to the loopback server. It transmits actual OpenMLS-produced Welcome, application ciphertext, and removal Commit messages, and verifies the removed device loses the ability to send. This test is ignored during ordinary `cargo test` and explicitly executed by the MLS GitHub Actions workflow after starting the relay.
+
+Run `cargo test` in `mls-lab/`. For the live WebSocket integration, start the server with `PICTOCHAT_RELAY_SECRET` and run `cargo test --test websocket -- --ignored` in the lab. Only use local, non-sensitive development data.
 
 ## Separation and security limits
 
-**No changes to the current browser's cryptography have been made by this MLS laboratory.** The browser still uses experimental AES-256-GCM with an independently shared key plus ephemeral P-256 signatures; it does **not** negotiate MLS epochs. The current relay still expects the signed-envelope v2 format, not MLS messages.
+**No changes to the current browser's cryptography have been made by this MLS laboratory.** The browser still uses experimental AES-256-GCM with an independently shared key plus ephemeral P-256 signatures; it does **not** negotiate MLS epochs. The relay now **also** accepts the opaque MLS transport framing v3, while leaving browser protocol v2 untouched. It does not parse or validate OpenMLS protocol contents. This is a transport test, not a deployed browser MLS client.
 
 Production prerequisites:
 
@@ -28,4 +32,17 @@ Production prerequisites:
 5. Commit `Cargo.lock`, pin transitive dependencies, add dependency and security auditing, stronger adversarial tests, and a protected release process.
 6. Independently security-review all code before claiming secure private communication.
 
-A passing MLS unit test establishes this narrow proof only, **not end-to-end security of the shipping browser application**.
+## MLS transport v3 (experimental)
+
+A WebSocket binary frame has one version byte `0x03`, followed by a one-byte kind and the unchanged TLS-serialized MLS payload:
+
+| Kind | Meaning |
+| --- | --- |
+| `0x01` | MLS application message |
+| `0x02` | MLS membership Commit |
+| `0x03` | MLS Welcome |
+| `0x04` | MLS KeyPackage |
+
+The relay only enforces an allowed kind and total 3–16384 bytes; there is **no** authenticated MLS group routing or verified membership in the server. All messages still broadcast to currently connected holders of the bearer room capability. MLS validation and secret handling **must** remain on client devices. KeyPackage discovery, specific Welcome targeting, offline recovery, ordering, and durable group identities are not implemented. The v2 browser is not upgraded and may ignore v3 messages.
+
+A passing MLS test proves only these specific integration flows, **not end-to-end security of the shipping browser application**.
