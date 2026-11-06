@@ -295,6 +295,24 @@ async function main() {
     assert.equal(pagesInMemory.count,4,"13 short messages must split into four original-screen pages");
     assert.equal(pagesInMemory.unique,4,"separate pages must not duplicate the same image");
     assert.equal(pagesInMemory.validPng,true);
+    // Exercise actual PDF pagination: FOUR separate original 256x192 screens,
+    // with zero A4 cards or extra documents.
+    await alice.evaluate(async () => {
+      const {preparePictoRustPrint} = await import("./pictorust-export.mjs");
+      const demo = Array.from({length:13},(_,i)=>({
+        nickname:"User"+i,text:"Message "+i+" – ÄÖÜ ğışç 😊",strokes:[]
+      }));
+      await preparePictoRustPrint(demo,"A",document.getElementById("pixel-print"));
+    });
+    await alice.pdf({
+      path:`${screenshots}/pictorust-multipage-demo.pdf`,
+      printBackground:true,preferCSSPageSize:true,displayHeaderFooter:false,scale:1
+    });
+    // Restore only the original real ephemeral messages for any next export.
+    await alice.locator("#pdf").click();
+    await alice.waitForFunction(() =>
+      document.querySelectorAll("#pixel-print .pixel-page").length===1);
+
 
     await alice.locator("#security-panel summary").click();
 
