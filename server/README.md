@@ -1,4 +1,4 @@
-# Experimental Rust relay — NOT READY FOR PRIVATE CHAT
+# PictoRust – ephemeral Rust relay
 
 This is an isolated, **room-capability-gated prototype with experimental client-side AES-256-GCM and ephemeral P-256 sender signatures**. It is not a replacement for a reviewed secure messenger and must not be deployed publicly.
 
