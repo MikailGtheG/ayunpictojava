@@ -172,26 +172,35 @@ function drawBox(ctx, part, x, y, sprites, font) {
   drawTinted(ctx, sprites["box_outline" + key + ".png"], x, y, 234, height, "#07068b");
 
   if (part.strokes.length) {
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(x + 2, y + 19, 230, height - 21);
-    ctx.clip();
-    ctx.strokeStyle = "#101010";
-    ctx.lineWidth = 1.4;
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
+    // Rasterize every stroke with integer Bresenham pixels. Native canvas
+    // lineTo() antialiases diagonals even when imageSmoothingEnabled=false.
+    // The drawing surface starts *below* the sender tab and frame header.
+    const inside = (px, py) =>
+      px >= x + 3 && px < x + 231 && py >= y + 19 && py < y + height - 2;
+    const point = ([px, py]) => [
+      Math.round(x + 3 + (px / 512) * 227),
+      Math.round(y + 19 + (py / 170) * (height - 22))
+    ];
+    ctx.fillStyle = "#101010";
+    function pixelLine(a, b) {
+      let [x0,y0] = point(a);
+      const [x1,y1] = point(b);
+      const dx=Math.abs(x1-x0),dy=Math.abs(y1-y0);
+      const sx=x0<x1?1:-1,sy=y0<y1?1:-1;
+      let err=dx-dy;
+      for (;;) {
+        if (inside(x0,y0)) ctx.fillRect(x0,y0,1,1);
+        if (x0===x1 && y0===y1) break;
+        const e2=2*err;
+        if(e2>-dy){err-=dy;x0+=sx;}
+        if(e2<dx){err+=dx;y0+=sy;}
+      }
+    }
     for (const stroke of part.strokes) {
       if (!stroke.length) continue;
-      ctx.beginPath();
-      stroke.forEach(([px, py], i) => {
-        const sx = x + (px / 512) * 234;
-        const sy = y + (py / 170) * height;
-        if (i === 0) ctx.moveTo(sx, sy); else ctx.lineTo(sx, sy);
-      });
-      if (stroke.length === 1) ctx.lineTo(x + stroke[0][0] / 512 * 234 + .1, y + stroke[0][1] / 170 * height);
-      ctx.stroke();
+      if (stroke.length===1) pixelLine(stroke[0],stroke[0]);
+      for(let i=1;i<stroke.length;i++) pixelLine(stroke[i-1],stroke[i]);
     }
-    ctx.restore();
   }
 
   // Match original PIXI BitmapText coordinates: x+6/y+4 sender,
