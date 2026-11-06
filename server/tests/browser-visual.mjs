@@ -3,7 +3,7 @@
 // Chromium is installed by the matching screenshot workflow.
 import { chromium, devices } from "playwright";
 import assert from "node:assert/strict";
-import { mkdir } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 
 const origin = "http://127.0.0.1:8787";
 const screenshots = "screenshots";
@@ -242,48 +242,44 @@ async function main() {
     assert.equal(await alice.locator("#lobby").isVisible(), false);
     assert.equal(await alice.locator("#security-panel").evaluate(el=>el.open), false);
 
-    // Print must NEVER reflow the absolute PIXI/DS stage into A4.
-    // The original messages remain live in the separate print-only document.
-    await alice.emulateMedia({ media: "print" });
-    assert.equal(await alice.locator("#page").isVisible(), false, "interactive DS stage must be hidden in print");
-    assert.equal(await alice.locator("#print-document").isVisible(), true, "independent A4 chat document must print");
-    assert.equal(await alice.locator("#print-messages .print-message").count(), 2);
-    assert.equal(await alice.locator("#print-messages .print-drawing").count(), 1);
-    assert.match(await alice.locator("#print-messages").innerText(), /Merhaba! Ä Ö Ü ß/);
-    assert.match(await alice.locator("#print-messages").innerText(), /Hallo zurück!/);
-    const printLayout = await alice.evaluate(() => {
-      const paper=document.getElementById("print-document");
-      const cards=Array.from(document.querySelectorAll(".print-message"));
-      const rect=paper.getBoundingClientRect();
-      return {
-        width:rect.width,
-        bodyScrollWidth:document.documentElement.scrollWidth,
-        viewportWidth:window.innerWidth,
-        cardRects:cards.map(el=>{
-          const r=el.getBoundingClientRect();
-          return {left:r.left,right:r.right,width:r.width,height:r.height};
-        }),
-        hiddenSecrets:["#token","#e2ee-key","#trusted-fingerprints"].every(selector =>
-          !document.querySelector(selector).getBoundingClientRect().width ||
-          getComputedStyle(document.getElementById("page")).display==="none")
-      };
-    });
-    assert.ok(printLayout.width>450 && printLayout.width<900, "print document should fit A4 content width");
-    assert.equal(printLayout.hiddenSecrets,true,"never expose invite tokens or encryption keys in PDF");
-    for(const card of printLayout.cardRects){
-      assert.ok(card.left>=0 && card.right<=printLayout.width+20,
-        "print card must not overflow printable A4 width");
-      assert.ok(card.height>=40,"printed messages must have readable nonzero height");
-    }
-    await alice.pdf({
-      path: `${screenshots}/pictochat-print-demo.pdf`,
-      format: "A4",
-      printBackground: true,
-      preferCSSPageSize: true,
-      displayHeaderFooter: false,
-    });
-    await alice.emulateMedia({ media: "screen" });
+    // Real pixel-export button: not browser A4 cards or shifted HTML boxes.
+    await alice.evaluate(() => { window.print=() => { window.__pixelPrintInvoked=true; }; });
+    await alice.locator("#security-panel summary").click();
+    await alice.locator("#pdf").click();
+    await alice.waitForFunction(() =>
+      document.querySelectorAll("#pixel-print .pixel-page").length > 0 &&
+      window.__pixelPrintInvoked === true, null, { timeout: 15000 });
+    const pixelPages = await alice.locator("#pixel-print .pixel-page").count();
+    assert.equal(pixelPages, 1, "two demo messages must share one original DS top-screen");
+    const pngData = await alice.locator("#pixel-print .pixel-page").first().evaluate(img => ({
+      url:img.src, naturalWidth:img.naturalWidth, naturalHeight:img.naturalHeight, complete:img.complete
+    }));
+    assert.equal(pngData.naturalWidth,256);
+    assert.equal(pngData.naturalHeight,192);
+    assert.ok(pngData.complete && pngData.url.startsWith("data:image/png;base64,"));
+    await writeFile(`${screenshots}/pictorust-export-page-1.png`,
+      Buffer.from(pngData.url.split(",")[1],"base64"));
+
+    await alice.emulateMedia({media:"print"});
+    assert.equal(await alice.locator("#page").isVisible(),false);
     assert.equal(await alice.locator("#print-document").isVisible(),false);
+    assert.equal(await alice.locator("#pixel-print").isVisible(),true);
+    const printSize = await alice.locator("#pixel-print .pixel-page").evaluate(img => {
+      const r=img.getBoundingClientRect();
+      return {width:r.width,height:r.height};
+    });
+    assert.equal(printSize.width,256);
+    assert.equal(printSize.height,192);
+    await alice.pdf({
+      path:`${screenshots}/pictochat-print-demo.pdf`,
+      printBackground:true,
+      preferCSSPageSize:true,
+      displayHeaderFooter:false,
+      scale:1
+    });
+    await alice.emulateMedia({media:"screen"});
+    assert.equal(await alice.locator("#pixel-print").isVisible(),false);
+    await alice.locator("#security-panel summary").click();
 
     const mobileContext = await browser.newContext({ ...devices["iPhone 13"], browserName: undefined });
     mobile = await mobileContext.newPage();
@@ -323,7 +319,7 @@ async function main() {
     const rotatedIdentity = await waitForIdentity(alice);
     assert.notEqual(rotatedIdentity, aliceFingerprint, "new session must rotate ephemeral identity");
     assert.equal(await alice.locator("#messages .entry").count(), 0);
-    assert.equal(await alice.locator("#print-messages .print-message").count(), 0, "PDF export memory must clear on leaving");
+    assert.equal(await alice.locator("#pixel-print .pixel-page").count(), 0, "Pixel export memory must clear on leaving");
     assert.equal(await alice.locator("#token").inputValue(), "");
     console.log("Visual browser acceptance passed: two peers, Unicode, sketches, reply, mobile and local clearing.");
     console.log("Screenshot artifacts: desktop, mobile, original 256x384 stage and original lobby PNGs.");
