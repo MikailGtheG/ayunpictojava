@@ -8,5 +8,5 @@
     "noEmit": true,
     "skipLibCheck": true
   },
-  "include": ["src/session.ts"]
+  "include": ["src/**/*.ts"]
 }
