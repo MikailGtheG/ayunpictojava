@@ -144,6 +144,31 @@ async function main() {
     await alice.mouse.down();
     await alice.mouse.move(bounds.x + 140, bounds.y + 80, { steps: 15 });
     await alice.mouse.up();
+    await alice.locator("#writing-board").screenshot({
+      path: `${screenshots}/pictochat-original-draft-box.png`,
+      animations: "disabled",
+    });
+    const draftSprites = await alice.evaluate(() => {
+      const el = document.getElementById("writing-board");
+      const stage = document.getElementById("picto").getBoundingClientRect();
+      const r = el.getBoundingClientRect(), scale = stage.width / 256;
+      const after = getComputedStyle(el, "::after");
+      const before = getComputedStyle(el, "::before");
+      return {
+        rect: [(r.x-stage.x)/scale,(r.y-stage.y)/scale,r.width/scale,r.height/scale],
+        outline: after.webkitMaskImage || after.maskImage,
+        lines: before.webkitMaskImage || before.maskImage,
+        background: getComputedStyle(el).backgroundImage,
+        draftName: document.getElementById("draft-name").textContent,
+      };
+    });
+    for (const [i, expected] of [21,207,234,85].entries())
+      assert.ok(Math.abs(draftSprites.rect[i]-expected)<0.8,
+        `writing box geometry axis ${i} must match original: ${draftSprites.rect[i]} vs ${expected}`);
+    assert.match(draftSprites.background,/box_bg5\.png/);
+    assert.match(draftSprites.outline,/box_outline5\.png/);
+    assert.match(draftSprites.lines,/box_lines5\.png/);
+    assert.equal(draftSprites.draftName,"Äysu");
 
     await alice.locator("#send").click();
     await bob.locator("#messages .entry").first().waitFor({ timeout: 15_000 });
@@ -177,6 +202,20 @@ async function main() {
     assert.match(messageGeometry.firstClass,/lines-5/);
     assert.match(messageGeometry.background,/box_bg5\.png/);
     assert.match(messageGeometry.secondClass,/lines-2/);
+    const spriteComposition = await alice.locator("#messages .entry").first().evaluate(el => ({
+      background: getComputedStyle(el).backgroundImage,
+      lines: getComputedStyle(el,"::before").webkitMaskImage,
+      outline: getComputedStyle(el,"::after").webkitMaskImage,
+      sender: el.querySelector(".who").textContent,
+    }));
+    assert.match(spriteComposition.background,/box_bg5\.png/);
+    assert.match(spriteComposition.lines,/box_lines5\.png/);
+    assert.match(spriteComposition.outline,/box_outline5\.png/);
+    assert.equal(spriteComposition.sender,"Äysu");
+    await alice.locator(".top-screen").screenshot({
+      path: `${screenshots}/pictochat-original-top-messages.png`,
+      animations: "disabled",
+    });
 
     assert.match(await alice.locator(".bottom-screen").evaluate(el => getComputedStyle(el).backgroundImage), /drawui\.png/);
     await screenshotSafe(alice, "pictochat-desktop");
