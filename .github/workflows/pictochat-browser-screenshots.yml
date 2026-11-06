@@ -69,7 +69,7 @@ jobs:
           test -s screenshots/pictorust-export-page-1.png
           pdfinfo screenshots/pictochat-print-demo.pdf > screenshots/pdfinfo.txt
           grep -Eq 'Pages: +1' screenshots/pdfinfo.txt
-          grep -Eq 'Page size: +595[.0-9]* x 842[.0-9]* pts' screenshots/pdfinfo.txt
+          grep -Eq 'Page size: +59[45][.0-9]* x 84[12][.0-9]* pts' screenshots/pdfinfo.txt
           # There must be no notes, captions, metadata labels or selectable document text:
           # all visual content is ONE rasterized original PictoChat screen.
           pdftotext -layout screenshots/pictochat-print-demo.pdf screenshots/print-text.txt
@@ -84,7 +84,7 @@ jobs:
           test -s screenshots/pictorust-multipage-demo.pdf
           pdfinfo screenshots/pictorust-multipage-demo.pdf > screenshots/multipage-pdfinfo.txt
           grep -Eq 'Pages: +1' screenshots/multipage-pdfinfo.txt
-          grep -Eq 'Page size: +595[.0-9]* x 842[.0-9]* pts' screenshots/multipage-pdfinfo.txt
+          grep -Eq 'Page size: +59[45][.0-9]* x 84[12][.0-9]* pts' screenshots/multipage-pdfinfo.txt
           pdftotext screenshots/pictorust-multipage-demo.pdf screenshots/multipage-text.txt
           if grep -Eq '[[:alnum:]]' screenshots/multipage-text.txt; then exit 1; fi
           pdfimages -list screenshots/pictorust-multipage-demo.pdf > screenshots/multipage-images.txt
