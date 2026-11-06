@@ -291,10 +291,36 @@ button:disabled{opacity:.5;cursor:default}
   width:calc(84 * var(--ds-pixel));height:calc(15 * var(--ds-pixel));
   line-height:calc(12 * var(--ds-pixel));
 }
-@media print{body{background:white}#lobby,.bottom-screen,#outside-actions,#security-panel,.warning,#top-scroll{display:none!important}#page{display:block}#picto{width:100%;height:auto;aspect-ratio:auto;box-shadow:none;border:0;background:white;overflow:visible}.top-screen,#messages{position:static;height:auto;width:auto;overflow:visible}#room-head{position:static;height:30px}#statusbar{display:none}.entry{break-inside:avoid}}
+/* Print is an independent document; never stretch the 256x384 absolute stage to A4. */
+#print-document{display:none}
+@page{size:A4;margin:17mm 16mm 19mm}
+@media print{
+  html,body{height:auto!important;min-height:0!important;width:auto!important;margin:0!important;padding:0!important;background:#fff!important;color:#151724!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  #page{display:none!important}
+  #print-document{display:block!important;position:static!important;width:auto!important;max-width:none!important;margin:0!important;padding:0!important;transform:none!important;overflow:visible!important;font-family:Arial,"Noto Sans",sans-serif!important;text-align:left!important}
+  #print-document .print-head{position:static!important;border-bottom:2px solid #33368d;padding:0 0 10pt;margin:0 0 18pt;display:flex;justify-content:space-between;align-items:flex-end;gap:16pt}
+  #print-document .print-title{font-size:21pt;font-weight:800;letter-spacing:.02em;color:#27265f}
+  #print-document .print-subtitle{font:10pt Arial,sans-serif;color:#656579;margin-top:4pt}
+  #print-document .print-mark{border:2px solid #444494;border-radius:6px;background:#eeeefd;color:#323275;padding:7pt 10pt;font:bold 11pt monospace;white-space:nowrap}
+  #print-document .print-messages{position:static!important;display:block!important;overflow:visible!important;width:auto!important;height:auto!important}
+  #print-document .print-message{display:block!important;position:relative!important;overflow:hidden!important;break-inside:avoid!important;page-break-inside:avoid!important;margin:0 0 13pt!important;border:1.5pt solid var(--print-color,#4e5192)!important;border-radius:8pt!important;background:#fff!important;box-shadow:none!important}
+  #print-document .print-sender{display:block!important;position:static!important;background:var(--print-accent,#eeeefd)!important;border:0!important;border-bottom:1pt solid var(--print-color,#4e5192)!important;font:bold 11pt Arial,sans-serif!important;color:#1c1c4c!important;padding:7pt 10pt!important;line-height:1.25!important}
+  #print-document .print-text{position:static!important;display:block!important;white-space:pre-wrap!important;overflow-wrap:anywhere!important;word-break:normal!important;color:#151524!important;font:11pt/1.5 Arial,"Noto Sans",sans-serif!important;padding:10pt 12pt 5pt!important;margin:0!important}
+  #print-document .print-drawing{display:block!important;position:static!important;width:auto!important;max-width:100%!important;height:auto!important;max-height:65mm!important;object-fit:contain!important;object-position:left center!important;image-rendering:auto!important;margin:6pt 12pt 10pt!important;padding:0!important;border:0!important;background:#fff!important}
+  #print-document .print-empty{font:11pt Arial,sans-serif;color:#555;margin:20pt 0}
+  #print-document .print-foot{font:9pt Arial,sans-serif;color:#686878;border-top:1px solid #ddd;padding-top:7pt;margin-top:12pt}
+}
 </style>
 </head>
 <body>
+<section id="print-document" aria-label="Druckansicht des lokalen Chatverlaufs">
+  <header class="print-head">
+    <div><div class="print-title">PictoChat</div><div class="print-subtitle">Lokaler Chat-Export · nur in dieser Sitzung sichtbare Nachrichten</div></div>
+    <div class="print-mark">CHAT / PRINT</div>
+  </header>
+  <main class="print-messages" id="print-messages"></main>
+  <footer class="print-foot">Lokal erzeugter PDF-Export. Enthält keine Zugangstokens, Schlüssel oder Geräte-Fingerprints.</footer>
+</section>
 <div id="page">
 <div id="picto" aria-label="Original PictoChat inspired 256 by 384 pixel interface">
   <section class="top-screen" aria-label="Chat-Bildschirm">
