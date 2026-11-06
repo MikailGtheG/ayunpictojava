@@ -217,12 +217,15 @@ async function main() {
     const tabsAndRules = await alice.locator("#messages .entry").evaluateAll(entries =>
       entries.map(el => ({
         sender:el.querySelector(".who").getBoundingClientRect().height,
+        senderBottom:el.querySelector(".who").getBoundingClientRect().bottom,
+        bodyTop:el.querySelector(".body").getBoundingClientRect().top,
         lines:getComputedStyle(el.querySelector(".rule-lines")).backgroundImage,
       }))
     );
     assert.equal(tabsAndRules.length,2);
     for (const entry of tabsAndRules) {
       assert.ok(entry.sender >= 25, "short message must not clip 15px DS sender tab");
+      assert.ok(entry.bodyTop >= entry.senderBottom-1, "message text must not overlap sender tab");
       assert.match(entry.lines,/repeating-linear-gradient/);
     }
     await alice.locator(".top-screen").screenshot({
