@@ -78,9 +78,54 @@ $("copy-room").addEventListener("click",async()=>{
   setStatus("Temporäre Raum-ID kopiert. Für Zugang weiterhin separates Token erforderlich.");
  }catch{setStatus("Zwischenablage nicht verfügbar; Raum-ID bitte manuell kopieren.");}
 });
-document.getElementById("keyboard-mode").addEventListener("click",()=>{
- document.getElementById("international-keys").classList.toggle("visible");
+// Exact key hitbox coordinates from the ORIGINAL main-fork
+// generateStageButtons() in src/main/resources/www/main.js.
+// Coordinates are 256x384 logical PIXI pixels; the lower screen starts y=192.
+const originalKeyHitboxes=[];
+for(let i=0;i<12;i++) originalKeyHitboxes.push([26+16*i,297,15,14]);
+for(let i=0;i<10;i++) originalKeyHitboxes.push([35+16*i,312,15,15]);
+originalKeyHitboxes.push([195,312,25,15]);
+for(let i=0;i<10;i++) originalKeyHitboxes.push([26+16*i,328,15,15]);
+originalKeyHitboxes.push([186,328,34,15]);
+originalKeyHitboxes.push([24,344,25,15]);
+for(let i=0;i<10;i++) originalKeyHitboxes.push([50+16*i,344,15,15]);
+originalKeyHitboxes.push([58,360,15,14],[74,360,15,14],[90,360,79,14],[170,360,15,14],[186,360,15,14]);
+const normalKeys=Array.from(document.querySelectorAll("#touch-keys button[data-char]"));
+if(normalKeys.length!==originalKeyHitboxes.length)throw new Error("Original 50-key geometry mismatch");
+function alignKey(button,rect){
+ const [x,y,w,h]=rect;
+ button.style.left=(x/256*100)+"%";
+ button.style.top=((y-192)/192*100)+"%";
+ button.style.width=(w/256*100)+"%";
+ button.style.height=(h/192*100)+"%";
+ button.dataset.originalHitbox=[x,y,w,h].join(",");
+}
+normalKeys.forEach((button,i)=>alignKey(button,originalKeyHitboxes[i]));
+// The international extension has its own labelled overlay, separate from
+// the untouched original QWERTY raster underneath.
+const intlKeys=Array.from(document.querySelectorAll("#international-keys button[data-char]"));
+intlKeys.forEach((button,i)=>{
+ const row=Math.floor(i/10),col=i%10;
+ alignKey(button,[24+col*19.6,296+row*20,19,19]);
 });
+let capsEnabled=false,shiftOnce=false;
+const normalMode=document.getElementById("keyboard-normal");
+const internationalMode=document.getElementById("international-keys");
+normalMode.addEventListener("click",()=>{
+ internationalMode.classList.remove("visible");
+ document.getElementById("touch-keys").style.visibility="visible";
+});
+document.getElementById("keyboard-mode").addEventListener("click",()=>{
+ internationalMode.classList.toggle("visible");
+ document.getElementById("touch-keys").style.visibility=internationalMode.classList.contains("visible")?"hidden":"visible";
+});
+document.getElementById("big-pen-tool").addEventListener("click",()=>{
+ ctx.lineWidth=5;
+});
+document.getElementById("small-pen-tool").addEventListener("click",()=>{
+ ctx.lineWidth=1;
+});
+document.getElementById("undo-outside").addEventListener("click",()=>document.getElementById("undo").click());
 document.querySelectorAll("#touch-keys [data-char], #international-keys [data-char]").forEach(button=>{
  button.addEventListener("click",()=>{
   const field=$("text");
@@ -95,7 +140,14 @@ document.querySelectorAll("#touch-keys [data-char], #international-keys [data-ch
    }else{field.value=field.value.slice(0,start)+field.value.slice(end);field.focus();field.setSelectionRange(start,start);}
    return;
   }
-  const insert=ch==="ENTER"?"\\n":ch;
+  if(ch==="CAPS"){
+   capsEnabled=!capsEnabled;return;
+  }
+  if(ch==="SHIFT"){
+   shiftOnce=!shiftOnce;return;
+  }
+  const insert=ch==="ENTER"?"\\n":(capsEnabled||shiftOnce)?ch.toUpperCase():ch;
+  shiftOnce=false;
   const next=field.value.slice(0,start)+insert+field.value.slice(end);
   if(Array.from(next).length>2000)return;
   field.value=next;field.focus();field.setSelectionRange(start+insert.length,start+insert.length);
