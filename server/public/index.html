@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>PictoChat Online – original artwork · ephemeral prototype</title>
+<title>PictoRust – PictoChat pixel messenger</title>
 <style>
 @font-face{font-family:nds;src:url("/original/nds.ttf") format("truetype");font-display:swap}
 :root{font-family:nds,"Courier New",monospace;color:#171717;background:#eaeaea}
@@ -340,6 +340,33 @@ button:disabled{opacity:.5;cursor:default}
   #print-document .print-empty{font:11pt Arial,sans-serif;color:#555;margin:20pt 0}
   #print-document .print-foot{font:9pt Arial,sans-serif;color:#686878;border-top:1px solid #ddd;padding-top:7pt;margin-top:12pt}
 }
+/* PictoRust print contract: pages are *rasterized original top screens*.
+   No A4 cards, PDF headers, dates, labels or extra annotations. */
+#pixel-print{display:none}
+@page { size:256px 192px; margin:0 }
+@media print {
+  html,body{
+    width:256px!important;height:auto!important;
+    min-height:0!important;margin:0!important;padding:0!important;
+    background:white!important;overflow:visible!important
+  }
+  #page,#print-document{display:none!important}
+  #pixel-print{
+    display:block!important;position:static!important;
+    width:256px!important;margin:0!important;padding:0!important;
+    overflow:visible!important;transform:none!important
+  }
+  #pixel-print[hidden]{display:block!important}
+  #pixel-print .pixel-page{
+    display:block!important;position:static!important;overflow:hidden!important;
+    width:256px!important;height:192px!important;max-width:none!important;
+    min-width:256px!important;min-height:192px!important;
+    margin:0!important;padding:0!important;border:0!important;
+    object-fit:fill!important;image-rendering:pixelated!important;
+    break-after:page!important;page-break-after:always!important
+  }
+  #pixel-print .pixel-page:last-child{break-after:auto!important;page-break-after:auto!important}
+}
 </style>
 </head>
 <body>
@@ -351,6 +378,7 @@ button:disabled{opacity:.5;cursor:default}
   <main class="print-messages" id="print-messages"></main>
   <footer class="print-foot">Lokal erzeugter PDF-Export. Enthält keine Zugangstokens, Schlüssel oder Geräte-Fingerprints.</footer>
 </section>
+<section id="pixel-print" aria-label="PictoRust pixel export" hidden></section>
 <div id="page">
 <div id="picto" aria-label="Original PictoChat inspired 256 by 384 pixel interface">
   <section class="top-screen" aria-label="Chat-Bildschirm">
@@ -479,7 +507,7 @@ button:disabled{opacity:.5;cursor:default}
   </section>
   <section id="lobby" aria-label="PictoChat Lobby">
     <img id="lobby-logo" src="/original/images/logo.png" alt="Original PictoChat Logo">
-    <h1>PictoChat Online</h1>
+    <h1>PictoRust</h1>
     <div class="lobby-entry">
       <label for="nickname">Username</label>
       <input id="nickname" maxlength="40" placeholder="Gast" spellcheck="false" autocomplete="off">
@@ -508,7 +536,7 @@ button:disabled{opacity:.5;cursor:default}
   </section>
   <div class="controls"><button id="pdf" type="button">PDF exportieren</button><button id="clear-chat" type="button">Chat löschen</button><button id="leave-room" type="button">EXIT</button><button id="undo-outside" type="button">Rückgängig</button></div>
 </details>
-<div class="warning">EXPERIMENTELLE AES-GCM- UND P-256-SIGNATUREN · Originalgrafiken aus dem Haupt-Fork. Keine MLS-Integration im Browser, keine Forward Secrecy. Nicht für vertrauliche Gespräche freigegeben.</div>
+<div class="warning">PICTORUST · EXPERIMENTELLE AES-GCM- UND P-256-SIGNATUREN · Originalgrafiken aus dem Haupt-Fork. Keine MLS-Integration im Browser, keine Forward Secrecy. Nicht für vertrauliche Gespräche freigegeben.</div>
 </div>
 <script type="module" src="./app.mjs"></script>
 </body>
