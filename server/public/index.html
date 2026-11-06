@@ -321,32 +321,34 @@ button:disabled{opacity:.5;cursor:default}
   outline:2px solid #5252ab;outline-offset:-3px;
   box-shadow:inset 4px 0 0 #6262ba;filter:brightness(.99);
 }
-/* PictoRust print contract: pages are *rasterized original top screens*.
-   No A4 cards, PDF headers, dates, labels or extra annotations. */
+/* A4 is the physical medium, 256px is only the original logical raster width.
+   Browser print expands each original pixel to exactly two CSS pixels, with
+   no interpolation; message strips flow top-to-bottom without screen resets. */
 #pixel-print{display:none}
-@page { size:256px 192px; margin:0 }
+@page { size:A4 portrait; margin:0 }
 @media print {
   html,body{
-    width:256px!important;height:auto!important;
-    min-height:0!important;margin:0!important;padding:0!important;
-    background:white!important;overflow:visible!important
+    width:210mm!important;height:auto!important;min-height:0!important;
+    margin:0!important;padding:0!important;background:#fff!important;
+    overflow:visible!important;
   }
   #page{display:none!important}
-  #pixel-print{
-    display:block!important;position:static!important;
-    width:256px!important;margin:0!important;padding:0!important;
-    overflow:visible!important;transform:none!important
+  #pixel-print,#pixel-print[hidden]{
+    display:block!important;position:static!important;width:210mm!important;
+    margin:0!important;padding:0!important;overflow:visible!important;
   }
-  #pixel-print[hidden]{display:block!important}
   #pixel-print .pixel-page{
-    display:block!important;position:static!important;overflow:hidden!important;
-    width:256px!important;height:192px!important;max-width:none!important;
-    min-width:256px!important;min-height:192px!important;
-    margin:0!important;padding:0!important;border:0!important;
-    object-fit:fill!important;image-rendering:pixelated!important;
-    break-after:page!important;page-break-after:always!important
+    display:block!important;position:relative!important;
+    width:512px!important;height:1040px!important;
+    max-width:none!important;min-width:512px!important;
+    min-height:1040px!important;margin:0 auto!important;
+    padding:0!important;border:0!important;object-fit:fill!important;
+    image-rendering:pixelated!important;image-rendering:crisp-edges!important;
+    break-after:page!important;page-break-after:always!important;
   }
-  #pixel-print .pixel-page:last-child{break-after:auto!important;page-break-after:auto!important}
+  #pixel-print .pixel-page:last-child{
+    break-after:auto!important;page-break-after:auto!important
+  }
 }
 </style>
 </head>
