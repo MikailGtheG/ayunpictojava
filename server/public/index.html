@@ -84,6 +84,40 @@ button:disabled{opacity:.5;cursor:default}
 #outside-actions button{padding:5px}
 .warning{width:min(512px,calc(100vw - 16px));font:11px/1.3 nds,monospace;text-align:left;color:#54526b;background:#f4f1d9;border:1px solid #b7b393;padding:5px}
 @media(max-width:540px){#page{padding-top:4px;gap:5px}#picto{width:min(100vw - 8px,512px)}#room-head{font-size:10px}.entry .body{font-size:11px}#touch-keys button{font-size:10px}#security-panel{width:calc(100vw - 8px)}}
+/* Sprite-anchored geometry: ORIGINAL 256x384 renderer coordinates.
+   All percentages below come from src/main/resources/www/main.js. */
+#picto{width:min(512px,calc(100vw - 16px));aspect-ratio:256/384}
+#writing-board{left:8.203125%;right:auto;top:7.8125%;width:91.40625%;height:43.75%;background:transparent;border:0}
+#text,#drawing{padding:0;border:0;border-radius:0}
+#tool-rail{position:absolute;top:0;left:0;width:100%;height:100%;display:block;pointer-events:none}
+#tool-rail .tool-btn,#send-side button,#top-scroll button{position:absolute;min-height:0;height:auto;min-width:0;margin:0;padding:0;border:0;border-radius:0;background:transparent;color:transparent;font-size:0;box-shadow:none;pointer-events:auto}
+#tool-rail .tool-btn[aria-pressed=true]{outline:1px solid rgba(92,79,179,.6);outline-offset:-1px;background:rgba(102,96,210,.1)}
+#pen-tool{left:.78125%;top:19.7916666667%;width:5.46875%;height:6.7708333333%!important}
+#eraser-tool{left:.78125%;top:27.0833333333%;width:5.46875%;height:6.7708333333%!important}
+#big-pen-tool{left:.78125%;top:36.9791666667%;width:5.46875%;height:7.2916666667%!important}
+#small-pen-tool{left:.78125%;top:44.7916666667%;width:5.46875%;height:7.2916666667%!important}
+#keyboard-normal{left:.78125%;top:55.7291666667%;width:5.46875%;height:7.2916666667%!important}
+#keyboard-mode{left:.78125%;top:64.5833333333%;width:5.46875%;height:7.2916666667%!important}
+#send-side{position:absolute;left:0;right:auto;top:0;width:100%;height:100%;display:block;pointer-events:none}
+#send-side #send{left:87.890625%;top:54.1666666667%;width:12.109375%;height:15.625%!important;background:transparent}
+#send-side #copy-last{left:87.890625%;top:70.3125%;width:12.109375%;height:11.9791666667%!important}
+#send-side #erase{left:87.890625%;top:82.8125%;width:12.109375%;height:12.5%!important}
+#send-side #undo{display:none}
+#tool-rail #clear{display:none}
+#top-scroll{position:absolute;left:0;top:0;width:100%;height:100%;display:block;z-index:2;pointer-events:none}
+#top-scroll #scroll-up{left:.78125%;top:1.0416666667%;width:5.46875%;height:7.2916666667%!important}
+#top-scroll #scroll-down{left:.78125%;top:8.8541666667%;width:5.46875%;height:7.2916666667%!important}
+#touch-keys,#international-keys{position:absolute;inset:0;width:100%;height:100%;display:block;pointer-events:none;z-index:1;background:transparent;padding:0}
+#touch-keys button,#international-keys button{position:absolute;pointer-events:auto;display:block;margin:0;padding:0;background:transparent;border:0;border-radius:0;color:transparent;font-size:0;min-width:0;min-height:0}
+#touch-keys button[data-char=" "],#touch-keys button[data-char="BACKSPACE"],#touch-keys button[data-char="ENTER"]{grid-column:auto}
+#touch-keys button:focus-visible,#international-keys button:focus-visible{outline:1px solid #5d4bc9;outline-offset:-1px}
+#touch-keys button:active,#international-keys button:active{background:rgba(103,88,197,.16)}
+#international-keys{display:none;background:url("/original/images/accents.png") center/100% 100% no-repeat}
+#international-keys.visible{display:block}
+#international-keys.visible~#touch-keys{display:none}
+#touch-keys:has(~#international-keys.visible){visibility:hidden}
+#international-keys button{color:transparent}
+#outside-actions #undo-outside{display:inline-block}
 @media print{body{background:white}#lobby,.bottom-screen,#outside-actions,#security-panel,.warning,#top-scroll{display:none!important}#page{display:block}#picto{width:100%;height:auto;aspect-ratio:auto;box-shadow:none;border:0;background:white;overflow:visible}.top-screen,#messages{position:static;height:auto;width:auto;overflow:visible}#room-head{position:static;height:30px}#statusbar{display:none}.entry{break-inside:avoid}}
 </style>
 </head>
@@ -92,10 +126,11 @@ button:disabled{opacity:.5;cursor:default}
 <div id="picto" aria-label="Original PictoChat inspired 256 by 384 pixel interface">
   <section class="top-screen" aria-label="Chat-Bildschirm">
     <div id="room-head"><span class="room-tab" id="room-letter">Chat Room A</span><span id="member-label">Gäste: 0</span><span class="signal">▂▄▆</span></div>
-    <div id="top-scroll"><button id="scroll-up" aria-label="Nach oben">▲</button><button id="scroll-down" aria-label="Nach unten">▼</button></div>
+
     <section id="messages" aria-label="Nachrichten" aria-live="polite"></section>
   </section>
   <section class="bottom-screen" aria-label="Touchscreen">
+    <div id="top-scroll"><button id="scroll-up" aria-label="Nach oben">▲</button><button id="scroll-down" aria-label="Nach unten">▼</button></div>
     <div id="writing-board" class="mode-pen">
       <textarea id="text" maxlength="2000" placeholder="ÄÖÜ ß ğışç 😊" aria-label="Text eingeben"></textarea>
       <canvas id="drawing" width="512" height="170" aria-label="Zeichenfeld"></canvas>
@@ -105,6 +140,9 @@ button:disabled{opacity:.5;cursor:default}
       <button class="tool-btn" type="button" id="text-tool" aria-label="Texteingabe" aria-pressed="false">A</button>
       <button class="tool-btn" type="button" id="eraser-tool" aria-label="Radiergummi">▱</button>
       <button class="tool-btn" type="button" id="clear" aria-label="Zeichnung löschen">□</button>
+      <button class="tool-btn" type="button" id="big-pen-tool" aria-label="Breiter Stift">●</button>
+      <button class="tool-btn" type="button" id="small-pen-tool" aria-label="Dünner Stift">·</button>
+      <button class="tool-btn" type="button" id="keyboard-normal" aria-label="Normale Tastatur">abc</button>
       <button class="tool-btn" type="button" id="keyboard-mode" aria-label="Internationale Tastatur umschalten">あ</button>
     </nav>
     <div id="send-side">
@@ -241,6 +279,7 @@ button:disabled{opacity:.5;cursor:default}
   <button id="pdf" type="button">PDF exportieren</button>
   <button id="clear-chat" type="button">Chat löschen</button>
   <button id="leave-room" type="button">EXIT</button>
+  <button id="undo-outside" type="button">Rückgängig</button>
 </div>
 <div class="warning">EXPERIMENTELLE AES-GCM- UND P-256-SIGNATUREN · Originalgrafiken aus dem Haupt-Fork. Keine MLS-Integration im Browser, keine Forward Secrecy. Nicht für vertrauliche Gespräche freigegeben.</div>
 </div>
