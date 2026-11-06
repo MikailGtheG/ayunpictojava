@@ -99,6 +99,10 @@ async function main() {
     }
     console.log("Pixel geometry passed: all 50 original keyboard hitboxes and 8 control rectangles.");
 
+    await alice.locator("#picto").screenshot({
+      path: `${screenshots}/pictochat-original-lobby.png`,
+      animations:"disabled",
+    });
     const aliceFingerprint = await waitForIdentity(alice);
     const bobFingerprint = await waitForIdentity(bob);
     assert.notEqual(aliceFingerprint, bobFingerprint, "each session needs its own ephemeral keypair");
@@ -158,6 +162,10 @@ async function main() {
 
     assert.match(await alice.locator(".bottom-screen").evaluate(el => getComputedStyle(el).backgroundImage), /drawui\.png/);
     await screenshotSafe(alice, "pictochat-desktop");
+    await alice.locator("#picto").screenshot({
+      path: `${screenshots}/pictochat-original-stage.png`,
+      animations:"disabled",
+    });
     assert.equal(await alice.locator("#lobby").isVisible(), false);
     assert.equal(await alice.locator("#security-panel").evaluate(el=>el.open), false);
 
@@ -214,7 +222,7 @@ async function main() {
     assert.equal(await alice.locator("#messages .entry").count(), 0);
     assert.equal(await alice.locator("#token").inputValue(), "");
     console.log("Visual browser acceptance passed: two peers, Unicode, sketches, reply, mobile and local clearing.");
-    console.log("Screenshot artifacts: screenshots/pictochat-desktop.png and screenshots/pictochat-mobile.png");
+    console.log("Screenshot artifacts: desktop, mobile, original 256x384 stage and original lobby PNGs.");
     console.log("PDF print proof: screenshots/pictochat-print-demo.pdf");
   } finally {
     await browser.close();
