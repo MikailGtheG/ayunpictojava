@@ -257,6 +257,29 @@ async function main() {
     assert.equal(pngData.naturalWidth,1024);
     assert.equal(pngData.naturalHeight,2080);
     assert.ok(pngData.complete && pngData.url.startsWith("data:image/png;base64,"));
+    // Explicit pixel-level regression: the original nds.ttf must remain crisp,
+    // while Unicode emoji must retain color rather than become black blobs.
+    const emojiRendersInColor = await alice.evaluate(async () => {
+      const {renderPictoRustPages} = await import("./pictorust-export.mjs");
+      const [url] = await renderPictoRustPages([
+        {nickname:"Test",text:"😊 🎨",strokes:[]}
+      ], "A");
+      const image = new Image(); image.src = url; await image.decode();
+      const canvas = document.createElement("canvas");
+      canvas.width = image.naturalWidth; canvas.height = image.naturalHeight;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(image,0,0);
+      const {data} = ctx.getImageData(0,0,canvas.width,canvas.height);
+      let warm = 0;
+      for (let pixel = 0; pixel < data.length; pixel += 4) {
+        const [r,g,b,a]=data.subarray(pixel,pixel+4);
+        if (a===255 && r>170 && g>80 && b<105) warm++;
+      }
+      return {warm,width:image.naturalWidth,height:image.naturalHeight};
+    });
+    assert.equal(emojiRendersInColor.width,1024);
+    assert.ok(emojiRendersInColor.warm>12,
+      "colored emoji must survive native pixel compositing");
     await writeFile(`${screenshots}/pictorust-export-page-1.png`,
       Buffer.from(pngData.url.split(",")[1],"base64"));
 
