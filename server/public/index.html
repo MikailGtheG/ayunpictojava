@@ -5,54 +5,67 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>PictoChat 2.0 – lokaler Entwicklungsclient</title>
 <style>
-:root{font-family:system-ui,sans-serif;background:#dcd9cf;color:#242424}
+:root{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:#292e38;background:#bac4d0}
 *{box-sizing:border-box}
-body{max-width:780px;margin:18px auto;padding:0 12px}
-header{background:#292929;color:#fff;padding:12px 18px;border-radius:12px 12px 0 0}
-h1{font-size:1.2rem;margin:0}
-.warning{background:#fff0bc;color:#402600;padding:10px 14px;border:2px solid #a97800;font-weight:650}
-.settings{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:14px;background:#f5f3ee}
-label{display:block;font-size:.82rem;font-weight:700}
-input,textarea,button{font:inherit}
-input{width:100%;padding:7px}
-button{padding:8px 12px;border:1px solid #777;border-radius:6px;background:#f2f2f2;cursor:pointer}
-button:disabled{opacity:.45;cursor:not-allowed}
+body{max-width:900px;margin:0 auto;padding:22px 16px 50px}
+header{display:flex;align-items:center;justify-content:space-between;background:#424e60;color:#fff;border:3px solid #253447;border-radius:18px 18px 8px 8px;box-shadow:0 7px 0 #8390a2;padding:12px 19px}
+header h1{font-size:1.25rem;letter-spacing:.05em;margin:0}
+header .brand-subtitle{font-size:.78rem;color:#d8e7f7}
+.warning{margin-top:12px;background:#fff6da;color:#5c4b1a;border:1px solid #cbb773;border-radius:8px;padding:9px 12px;font-size:.84rem}
+.settings{margin:14px 0 18px;padding:14px 17px;border:2px solid #7e8e9d;border-radius:14px;background:#e9eff5;display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.settings label,.editor label{display:block;font-size:.8rem;font-weight:700;margin-bottom:4px}
+.settings input,.editor textarea{width:100%;border:2px solid #aeb7c1;border-radius:5px;padding:8px;background:#fff;color:#1f2937;font:inherit}
+.settings output{display:block;overflow-wrap:anywhere;border-radius:5px;background:#fff;font:11px/1.4 monospace;padding:6px;border:1px solid #aeb7c1}
+.settings button,.actions button{font:inherit;padding:8px 11px;background:#eff4fa;border:2px solid #75889a;border-radius:7px;color:#202e3d;box-shadow:0 2px 0 #a1b2bf;cursor:pointer}
+.settings button:hover,.actions button:hover{background:#d6eaf7}
+.settings button:disabled,.actions button:disabled{opacity:.45;cursor:not-allowed}
 .controls{grid-column:1/-1;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-#status{font-weight:700}
-#messages{background:#fff;min-height:230px;height:44vh;overflow-y:auto;padding:12px;border:2px solid #555}
-.entry{border-bottom:1px solid #ccc;padding:7px;overflow-wrap:anywhere}
-.entry .who{font-weight:700;color:#333}
-.entry .body{white-space:pre-wrap}
-.entry img{max-width:100%;image-rendering:pixelated;display:block;margin-top:6px}
-.editor{background:#f5f3ee;padding:12px;border-radius:0 0 12px 12px}
-textarea{width:100%;height:70px;resize:vertical;padding:8px}
-#drawing{display:block;width:100%;height:170px;background:white;border:2px solid #333;touch-action:none;cursor:crosshair}
-.actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
-.note{font-size:.78rem;color:#555}
+#status{font-size:.85rem;font-weight:700}
+.device{background:#d1d9e0;border:5px solid #4a596b;border-radius:22px;padding:13px;box-shadow:0 9px 0 #718095,0 14px 30px #50627666}
+.shell-title{display:flex;justify-content:space-between;align-items:center;font-weight:800;font-size:.8rem;letter-spacing:.12em;color:#344456;margin:0 0 7px;padding:0 7px}
+.screen-frame{padding:9px;background:#6e7886;border:3px solid #3b4958;border-radius:12px;box-shadow:inset 0 2px 4px #18263588}
+.screen{background:#fff;min-height:160px;border:3px solid #303c48;border-radius:4px;overflow:hidden}
+#messages{height:35vh;min-height:230px;overflow-y:auto;padding:12px;background:repeating-linear-gradient(0deg,#fff 0,#fff 27px,#eaf1f5 28px)}
+.entry{padding:6px 7px;border-bottom:1px solid #ced5dc;overflow-wrap:anywhere}
+.entry .who{font-size:.77rem;font-weight:800;color:#304f7b}
+.entry .body{white-space:pre-wrap;line-height:1.6}
+.entry img{width:auto;max-width:100%;display:block;margin:6px 0;image-rendering:pixelated;border:1px solid #dce2e7;background:white}
+.hinge{height:26px;margin:8px -5px;background:linear-gradient(#7f8fa3,#586a7e 55%,#91a0b3);border:2px solid #4a596b;border-radius:10px;position:relative}
+.hinge:before,.hinge:after{content:"";position:absolute;top:7px;width:30px;height:7px;border-radius:8px;background:#3b4b5e}
+.hinge:before{left:24px}.hinge:after{right:24px}
+.editor{background:#eff3f6;border-radius:9px;padding:13px}
+textarea{min-height:64px;resize:vertical}
+#drawing{display:block;width:100%;height:170px;background:white;border:2px solid #42536a;touch-action:none;cursor:crosshair;image-rendering:pixelated;border-radius:4px}
+.actions{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}
+.actions #send{background:#d4eecb;border-color:#51834b;font-weight:800}
+.note{font-size:.76rem;color:#495767;line-height:1.5;margin-bottom:0}
+footer{text-align:center;padding:15px;color:#344456;font-size:.75rem}
+@media(max-width:600px){body{padding:9px 7px 20px}.settings{grid-template-columns:1fr}.device{padding:6px;border-width:3px}.screen-frame{padding:5px}header{padding:10px}#messages{height:37vh;min-height:180px}}
 @media print{
-  :root{background:white}
-  body{max-width:none;margin:0;padding:0}
-  .settings,.editor,.controls,.warning,.note{display:none!important}
-  header{background:white;color:black;border-radius:0;padding:0 0 8px}
-  #messages{height:auto;overflow:visible;border:0;min-height:0;padding:0}
+ :root{background:#fff;color:#111}body{max-width:none;margin:0;padding:0}
+ header{background:white;color:black;border:0;box-shadow:none;padding:0 0 9px}
+ .settings,.warning,.editor,.hinge,.shell-title,footer{display:none!important}
+ .device,.screen-frame,.screen{background:white;border:0;box-shadow:none;padding:0;margin:0;min-height:0}
+ #messages{height:auto;overflow:visible;min-height:0;background:white;padding:0}
+ .entry{break-inside:avoid} .entry img{max-width:100%}
 }
-@media(max-width:500px){.settings{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
-<header><h1>PictoChat 2.0 · Entwicklungsclient</h1></header>
+<header><h1>✎ PictoChat 2.0</h1><span class="brand-subtitle">NINTENDO DS · EPHEMERAL EDITION</span></header>
 <div class="warning">EXPERIMENTELLE AES-GCM- UND P-256-SIGNATUREN – Absender nur nach externem Fingerprint-Vergleich akzeptieren. Sitzungsidentitäten verfallen beim Neuladen; kein MLS, keine Forward Secrecy. Nicht produktionsreif.</div>
 <section class="settings" aria-label="Raumzugang">
-  <div><label for="room">Raum-ID (32 Kleinbuchstaben/Hex-Zeichen)</label><input id="room" minlength="32" maxlength="32" autocomplete="off" spellcheck="false" value="0123456789abcdef0123456789abcdef"></div>
+  <div><label for="room">Temporärer Raum (32 Hex-Zeichen)</label><input id="room" minlength="32" maxlength="32" autocomplete="off" spellcheck="false"><button id="new-room" type="button">Neuen Raum erstellen</button></div>
+  <div><label for="nickname">Nickname · nur diese Sitzung</label><input id="nickname" maxlength="40" placeholder="Gast / Misafir" autocomplete="off" spellcheck="false"></div>
   <div><label for="token">Einladungstoken (64 Hex-Zeichen)</label><input id="token" type="password" minlength="64" maxlength="64" autocomplete="off" spellcheck="false"></div>
   <div><label for="e2ee-key">Separater Chat-Schlüssel (64 Hex-Zeichen; niemals an den Server senden)</label><input id="e2ee-key" type="password" minlength="64" maxlength="64" autocomplete="off" spellcheck="false"><button id="generate-key" type="button">Sicheren Schlüssel erzeugen</button><button id="show-key" type="button">Schlüssel anzeigen/verbergen</button></div>
   <div><label>Eigener Geräte-Fingerprint (nur für diese Sitzung)</label><output id="own-fingerprint">Wird erzeugt …</output><button type="button" id="new-identity">Neue Sitzungsidentität</button></div>
   <div><label for="trusted-fingerprints">Verifizierte Fingerprints anderer Teilnehmer (extern vergleichen, per Komma getrennt)</label><input id="trusted-fingerprints" type="text" autocomplete="off" spellcheck="false" placeholder="64-stellige SHA-256-Fingerprints"></div>
   <div class="controls"><button id="connect">Verbinden</button><button id="disconnect" disabled>Trennen</button><span id="status" role="status">Nicht verbunden</span></div>
 </section>
-<main>
-<section id="messages" aria-label="Nachrichten" aria-live="polite"></section>
-<div class="editor">
+<main class="device"><div class="shell-title"><span>TOP SCREEN · CHAT</span><span>● LIVE / NO HISTORY</span></div><div class="screen-frame"><div class="screen">
+<section id="messages" aria-label="Nachrichten" aria-live="polite"></section></div></div>
+<div class="hinge" aria-hidden="true"></div><div class="shell-title"><span>TOUCH SCREEN · DRAW & TYPE</span><span>✎</span></div><div class="screen-frame"><div class="screen"><div class="editor">
   <label for="text">Nachricht (Unicode/Deutsch/Türkisch)</label>
   <textarea id="text" maxlength="2000" placeholder="Hallo! ÄÖÜ ß ğışç 😊"></textarea>
   <label for="drawing">Zeichnen mit Maus, Finger oder Stift</label>
@@ -60,12 +73,13 @@ textarea{width:100%;height:70px;resize:vertical;padding:8px}
   <div class="actions">
     <button id="send" disabled>Nachricht senden</button>
     <button id="clear">Zeichnung löschen</button>
+    <button id="undo">Letzten Strich rückgängig</button>
     <button id="pdf">Lokal als PDF drucken</button>
     <button id="erase">Lokalen Verlauf löschen</button>
   </div>
   <p class="note">Transport enthält jetzt verschlüsselte Nachrichten. Beide Teilnehmer müssen denselben separaten Chat-Schlüssel kennen. Der Server erhält nur das Raum-Zugangstoken, nicht den Chat-Schlüssel. Keine Weitergabe des Schlüssels über diesen Chat. Keine externen Skripte; PDF nur über den lokalen Druckdialog. Unbekannte Absender werden abgelehnt. Fingerprints müssen über einen unabhängigen sicheren Kanal verglichen werden; Geräteidentitäten sind derzeit nur sitzungsbezogen.</p>
-</div>
-</main>
+</div></div></div>
+</main><footer>PRIVATE BY DESIGN · Keine Accounts · Keine Chat-Datenbank · Experimenteller localhost-Client</footer>
 <script type="module">
 import { importRoomKey, encryptPacket, decryptPacket, ReplayGuard } from "./crypto.mjs";
 import { createSessionIdentity, signMessage, verifyMessage, parseTrustedFingerprints } from "./identity.mjs";
