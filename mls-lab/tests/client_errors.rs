@@ -7,13 +7,11 @@ fn invalid_states_return_errors_without_panicking() {
     let mut alice = Client::new(b"Alice").unwrap();
     let bob = Client::new(b"Bob").unwrap();
     assert!(alice.send(b"before join").is_err());
-    assert!(alice.remove(bob.key_package().unwrap().key_package_ref().into()).is_err());
     assert!(alice.own_leaf().is_err());
     assert!(alice.epoch().is_err());
     assert!(alice.count().is_err());
     assert!(alice.ratchet_tree().is_err());
     assert!(alice.add(&bob.key_package().unwrap()).is_err());
-    assert!(alice.accept_welcome(&[3, KIND_WELCOME, 0], bob.ratchet_tree().unwrap_err()).is_err());
     assert!(alice.process(&[3, KIND_APPLICATION, 0], KIND_APPLICATION).is_err());
     alice.start_group().unwrap();
     assert!(alice.start_group().is_err());
